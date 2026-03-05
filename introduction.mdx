@@ -54,7 +54,7 @@ Analyze international phone numbers using **phonenumbers 9.0** library with asyn
 
 <CodeGroup>
 
-```python Backend
+```yaml Backend
 # Core Framework
 Django 5.2
 Python 3.12
@@ -68,7 +68,7 @@ Gunicorn 23.0
 WhiteNoise 6.8.2 (static files)
 ```
 
-```python OSINT Tools
+```yaml OSINT Tools
 # Integrated Libraries
 holehe==1.61          # Email search
 sherlock-project==0.16.0  # Username search
@@ -76,13 +76,13 @@ PyExifTool==0.5.6     # Metadata extraction
 phonenumbers==9.0.18  # Phone analysis
 ```
 
-```javascript Frontend
-// UI Framework
+```yaml Frontend
+# UI Framework
 Bootstrap 5
 Bootstrap Icons
 Vanilla JavaScript
 
-// Database
+# Database
 SQLite 3 (development)
 PostgreSQL (production)
 ```
@@ -140,7 +140,7 @@ OSINT Hub implements multiple security layers:
 
 ## Project Structure
 
-```
+```text
 osint_hub/
 ├── osint_hub/              # Django project configuration
 │   ├── settings.py         # Main settings
