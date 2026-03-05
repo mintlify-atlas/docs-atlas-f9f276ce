@@ -1,0 +1,97 @@
+{
+  "projectType": "saas",
+  "projectName": "OSINT Hub",
+  "projectDescription": "Centralized web platform for OSINT tools including email search, metadata extraction, hash verification, IP lookup, username search, and phone search",
+  "theme": "aspen",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "features"
+            ]
+          },
+          {
+            "group": "Tools",
+            "pages": [
+              "tools/email-search",
+              "tools/exif-metadata",
+              "tools/hash-tool",
+              "tools/ip-lookup",
+              "tools/username-search",
+              "tools/phone-search"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/overview",
+              "security/best-practices"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Deployment",
+        "groups": [
+          {
+            "group": "Installation",
+            "pages": [
+              "deployment/installation",
+              "deployment/requirements",
+              "deployment/configuration"
+            ]
+          },
+          {
+            "group": "Production",
+            "pages": [
+              "deployment/production",
+              "deployment/pythonanywhere",
+              "deployment/environment-variables"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Contributing",
+            "pages": [
+              "development/contributing",
+              "development/project-structure",
+              "development/roadmap"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Email Search with Holehe integration",
+    "EXIF metadata extraction from images, videos, and PDFs",
+    "Cryptographic hash generation and verification",
+    "IP geolocation and network information lookup",
+    "Username search across 300+ platforms with Sherlock",
+    "International phone number information search",
+    "Async task processing with Celery",
+    "Responsive Bootstrap 5 interface with dark/light mode",
+    "Comprehensive security features (CSP, HSTS, CSRF protection)"
+  ],
+  "publicApiSurface": [
+    "/email/ - Email search endpoint",
+    "/exiftool/ - EXIF metadata extraction endpoint",
+    "/hash/ - Hash generation and verification endpoint",
+    "/ip/ - IP lookup endpoint",
+    "/user/ - Username search endpoint",
+    "/phone/ - Phone search endpoint"
+  ]
+}
