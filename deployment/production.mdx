@@ -1,0 +1,592 @@
+---
+title: 'Production Deployment'
+description: 'Deploy OSINT Hub to production with Gunicorn, nginx, PostgreSQL, and security hardening'
+icon: 'server'
+---
+
+## Overview
+
+This guide covers deploying OSINT Hub to a production environment with a robust stack:
+
+- **Gunicorn** as the WSGI application server
+- **nginx** as the reverse proxy
+- **PostgreSQL** as the production database
+- **Redis** for Celery task queue
+- **WhiteNoise** for static file serving
+- **Systemd** for process management
+
+<Warning>
+  Never deploy with `DEBUG=True` in production. This exposes sensitive information and creates security vulnerabilities.
+</Warning>
+
+## Prerequisites
+
+Before starting, ensure you have:
+
+- Ubuntu 20.04+ or similar Linux distribution
+- Python 3.12+
+- PostgreSQL 12+
+- Redis server
+- Domain name pointed to your server
+- ExifTool installed (`sudo apt install libimage-exiftool-perl`)
+
+## System Preparation
+
+<Steps>
+  <Step title="Update system packages">
+    ```bash
+    sudo apt update && sudo apt upgrade -y
+    ```
+  </Step>
+
+  <Step title="Install required system packages">
+    ```bash
+    sudo apt install -y python3.12 python3.12-venv python3-pip \
+      postgresql postgresql-contrib redis-server nginx \
+      libimage-exiftool-perl git
+    ```
+  </Step>
+
+  <Step title="Configure PostgreSQL">
+    Create a database and user for OSINT Hub:
+
+    ```bash
+    sudo -u postgres psql
+    ```
+
+    In the PostgreSQL prompt:
+
+    ```sql
+    CREATE DATABASE osint_hub;
+    CREATE USER osint_user WITH PASSWORD 'your_secure_password';
+    ALTER ROLE osint_user SET client_encoding TO 'utf8';
+    ALTER ROLE osint_user SET default_transaction_isolation TO 'read committed';
+    ALTER ROLE osint_user SET timezone TO 'UTC';
+    GRANT ALL PRIVILEGES ON DATABASE osint_hub TO osint_user;
+    \q
+    ```
+  </Step>
+
+  <Step title="Start and enable Redis">
+    ```bash
+    sudo systemctl start redis
+    sudo systemctl enable redis
+    ```
+  </Step>
+</Steps>
+
+## Application Setup
+
+<Steps>
+  <Step title="Create application user">
+    ```bash
+    sudo useradd -m -s /bin/bash osinthub
+    sudo su - osinthub
+    ```
+  </Step>
+
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/Nakajito/osint_hub.git
+    cd osint_hub
+    ```
+  </Step>
+
+  <Step title="Create and activate virtual environment">
+    ```bash
+    python3.12 -m venv venv
+    source venv/bin/activate
+    ```
+  </Step>
+
+  <Step title="Install Python dependencies">
+    ```bash
+    pip install --upgrade pip
+    pip install -r requirements.txt
+    ```
+  </Step>
+
+  <Step title="Configure environment variables">
+    Create a `.env` file with production settings:
+
+    ```bash
+    nano .env
+    ```
+
+    Add the following configuration (adjust values accordingly):
+
+    ```env
+    SECRET_KEY=your-very-long-random-secret-key-here
+    DEBUG=False
+    ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
+    CSRF_TRUSTED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+    DATABASE_URL=postgres://osint_user:your_secure_password@localhost:5432/osint_hub
+    ```
+
+    Generate a secure SECRET_KEY:
+    ```bash
+    python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+    ```
+  </Step>
+
+  <Step title="Run database migrations">
+    ```bash
+    python manage.py migrate
+    ```
+  </Step>
+
+  <Step title="Collect static files">
+    ```bash
+    python manage.py collectstatic --no-input
+    ```
+
+    Static files are served by **WhiteNoise**, which is already configured in `settings.py`.
+  </Step>
+
+  <Step title="Create superuser (optional)">
+    ```bash
+    python manage.py createsuperuser
+    ```
+  </Step>
+</Steps>
+
+## Gunicorn Configuration
+
+<Steps>
+  <Step title="Create Gunicorn systemd service">
+    Exit the osinthub user and return to your sudo user:
+
+    ```bash
+    exit
+    ```
+
+    Create the service file:
+
+    ```bash
+    sudo nano /etc/systemd/system/osinthub.service
+    ```
+  </Step>
+
+  <Step title="Add service configuration">
+    ```ini
+    [Unit]
+    Description=OSINT Hub Gunicorn Daemon
+    After=network.target
+
+    [Service]
+    User=osinthub
+    Group=osinthub
+    WorkingDirectory=/home/osinthub/osint_hub
+    Environment="PATH=/home/osinthub/osint_hub/venv/bin"
+    EnvironmentFile=/home/osinthub/osint_hub/.env
+    ExecStart=/home/osinthub/osint_hub/venv/bin/gunicorn \
+              --workers 3 \
+              --bind unix:/home/osinthub/osint_hub/osinthub.sock \
+              --timeout 120 \
+              --access-logfile /var/log/osinthub/access.log \
+              --error-logfile /var/log/osinthub/error.log \
+              osint_hub.wsgi:application
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+  </Step>
+
+  <Step title="Create log directory">
+    ```bash
+    sudo mkdir -p /var/log/osinthub
+    sudo chown osinthub:osinthub /var/log/osinthub
+    ```
+  </Step>
+
+  <Step title="Start and enable Gunicorn">
+    ```bash
+    sudo systemctl start osinthub
+    sudo systemctl enable osinthub
+    sudo systemctl status osinthub
+    ```
+  </Step>
+</Steps>
+
+## Celery Worker Configuration
+
+<Steps>
+  <Step title="Create Celery worker service">
+    ```bash
+    sudo nano /etc/systemd/system/osinthub-celery.service
+    ```
+
+    Add the following:
+
+    ```ini
+    [Unit]
+    Description=OSINT Hub Celery Worker
+    After=network.target redis.service
+
+    [Service]
+    Type=forking
+    User=osinthub
+    Group=osinthub
+    WorkingDirectory=/home/osinthub/osint_hub
+    Environment="PATH=/home/osinthub/osint_hub/venv/bin"
+    EnvironmentFile=/home/osinthub/osint_hub/.env
+    ExecStart=/home/osinthub/osint_hub/venv/bin/celery -A osint_hub worker \
+              --loglevel=info \
+              --logfile=/var/log/osinthub/celery.log \
+              --pidfile=/var/run/celery/worker.pid
+    ExecStop=/bin/kill -s TERM $MAINPID
+    Restart=always
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+  </Step>
+
+  <Step title="Create PID directory">
+    ```bash
+    sudo mkdir -p /var/run/celery
+    sudo chown osinthub:osinthub /var/run/celery
+    ```
+  </Step>
+
+  <Step title="Start and enable Celery worker">
+    ```bash
+    sudo systemctl start osinthub-celery
+    sudo systemctl enable osinthub-celery
+    sudo systemctl status osinthub-celery
+    ```
+  </Step>
+</Steps>
+
+## Nginx Configuration
+
+<Steps>
+  <Step title="Create nginx site configuration">
+    ```bash
+    sudo nano /etc/nginx/sites-available/osinthub
+    ```
+  </Step>
+
+  <Step title="Add nginx configuration">
+    ```nginx
+    upstream osinthub_app {
+        server unix:/home/osinthub/osint_hub/osinthub.sock fail_timeout=0;
+    }
+
+    server {
+        listen 80;
+        server_name yourdomain.com www.yourdomain.com;
+
+        client_max_body_size 50M;
+
+        location / {
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Host $http_host;
+            proxy_redirect off;
+            proxy_pass http://osinthub_app;
+        }
+
+        location /static/ {
+            alias /home/osinthub/osint_hub/staticfiles/;
+            expires 30d;
+            add_header Cache-Control "public, immutable";
+        }
+
+        location /media/ {
+            alias /home/osinthub/osint_hub/media/;
+            expires 7d;
+        }
+
+        location /.well-known/security.txt {
+            alias /home/osinthub/osint_hub/static/.well-known/security.txt;
+        }
+
+        location /robots.txt {
+            alias /home/osinthub/osint_hub/static/robots.txt;
+        }
+
+        location /sitemap.xml {
+            alias /home/osinthub/osint_hub/static/sitemap.xml;
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Enable the site and test configuration">
+    ```bash
+    sudo ln -s /etc/nginx/sites-available/osinthub /etc/nginx/sites-enabled/
+    sudo nginx -t
+    sudo systemctl restart nginx
+    ```
+  </Step>
+</Steps>
+
+## SSL/TLS with Let's Encrypt
+
+<Steps>
+  <Step title="Install Certbot">
+    ```bash
+    sudo apt install -y certbot python3-certbot-nginx
+    ```
+  </Step>
+
+  <Step title="Obtain SSL certificate">
+    ```bash
+    sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+    ```
+
+    Follow the prompts to complete the certificate installation.
+  </Step>
+
+  <Step title="Enable automatic renewal">
+    Certbot automatically creates a cron job for renewal. Test it:
+
+    ```bash
+    sudo certbot renew --dry-run
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  After enabling SSL, update your `.env` file to use HTTPS in `CSRF_TRUSTED_ORIGINS`.
+</Warning>
+
+## Security Hardening
+
+OSINT Hub includes built-in security features that are automatically enabled when `DEBUG=False`:
+
+### Django Security Settings
+
+The following settings are automatically configured in `osint_hub/settings.py:141-150`:
+
+- **HSTS (HTTP Strict Transport Security)**: Forces HTTPS for 1 year
+- **Secure Cookies**: Session and CSRF cookies only sent over HTTPS
+- **XSS Protection**: Browser-level XSS filtering enabled
+- **Content Type Nosniff**: Prevents MIME type sniffing
+- **Clickjacking Protection**: X-Frame-Options set to DENY
+
+### Content Security Policy (CSP)
+
+Configured via `django-csp` middleware in `osint_hub/settings.py:186-234`:
+
+- Restricts script sources to self and trusted CDNs (Bootstrap, jQuery)
+- Allows styles from self and Google Fonts
+- Permits images from self, data URIs, and OpenStreetMap tiles
+- Blocks inline scripts by default (use nonces for exceptions)
+
+### Additional Recommendations
+
+<Steps>
+  <Step title="Configure firewall">
+    ```bash
+    sudo ufw allow 22/tcp
+    sudo ufw allow 80/tcp
+    sudo ufw allow 443/tcp
+    sudo ufw enable
+    ```
+  </Step>
+
+  <Step title="Set up fail2ban">
+    ```bash
+    sudo apt install -y fail2ban
+    sudo systemctl enable fail2ban
+    sudo systemctl start fail2ban
+    ```
+  </Step>
+
+  <Step title="Restrict file permissions">
+    ```bash
+    sudo chmod 600 /home/osinthub/osint_hub/.env
+    ```
+  </Step>
+
+  <Step title="Regular security updates">
+    Keep your system and dependencies up to date:
+
+    ```bash
+    sudo apt update && sudo apt upgrade -y
+    pip install --upgrade -r requirements.txt
+    ```
+  </Step>
+</Steps>
+
+## Monitoring and Logs
+
+### Application Logs
+
+View Gunicorn logs:
+```bash
+sudo journalctl -u osinthub -f
+```
+
+View Celery logs:
+```bash
+sudo journalctl -u osinthub-celery -f
+```
+
+### Nginx Logs
+
+Access logs:
+```bash
+sudo tail -f /var/log/nginx/access.log
+```
+
+Error logs:
+```bash
+sudo tail -f /var/log/nginx/error.log
+```
+
+### Database Backups
+
+Create automated PostgreSQL backups:
+
+```bash
+sudo -u postgres pg_dump osint_hub > backup_$(date +%Y%m%d).sql
+```
+
+Set up a cron job for daily backups:
+```bash
+sudo crontab -e
+```
+
+Add:
+```cron
+0 2 * * * /usr/bin/pg_dump -U postgres osint_hub > /backups/osint_hub_$(date +\%Y\%m\%d).sql
+```
+
+## Troubleshooting
+
+### Service won't start
+
+Check service status and logs:
+```bash
+sudo systemctl status osinthub
+sudo journalctl -u osinthub -n 50
+```
+
+### Static files not loading
+
+Ensure staticfiles were collected and nginx has read permissions:
+```bash
+sudo su - osinthub
+cd osint_hub
+source venv/bin/activate
+python manage.py collectstatic --no-input
+exit
+sudo chmod -R 755 /home/osinthub/osint_hub/staticfiles/
+```
+
+### Database connection errors
+
+Verify PostgreSQL is running and credentials are correct:
+```bash
+sudo systemctl status postgresql
+sudo -u postgres psql -c "\l"
+```
+
+Test connection:
+```bash
+psql -U osint_user -h localhost -d osint_hub
+```
+
+### Celery tasks not running
+
+Check Redis connectivity:
+```bash
+redis-cli ping
+```
+
+Verify Celery worker is active:
+```bash
+sudo systemctl status osinthub-celery
+```
+
+## Performance Tuning
+
+### Gunicorn Workers
+
+Calculate optimal worker count:
+```
+workers = (2 × CPU cores) + 1
+```
+
+For a 4-core server:
+```bash
+--workers 9
+```
+
+### PostgreSQL Tuning
+
+Edit `/etc/postgresql/{version}/main/postgresql.conf`:
+
+```ini
+shared_buffers = 256MB
+effective_cache_size = 1GB
+maintenance_work_mem = 64MB
+work_mem = 8MB
+```
+
+Restart PostgreSQL:
+```bash
+sudo systemctl restart postgresql
+```
+
+### Redis Optimization
+
+Edit `/etc/redis/redis.conf`:
+
+```ini
+maxmemory 512mb
+maxmemory-policy allkeys-lru
+```
+
+Restart Redis:
+```bash
+sudo systemctl restart redis
+```
+
+## Updates and Maintenance
+
+<Steps>
+  <Step title="Pull latest changes">
+    ```bash
+    sudo su - osinthub
+    cd osint_hub
+    git pull origin main
+    ```
+  </Step>
+
+  <Step title="Update dependencies">
+    ```bash
+    source venv/bin/activate
+    pip install --upgrade -r requirements.txt
+    ```
+  </Step>
+
+  <Step title="Run migrations">
+    ```bash
+    python manage.py migrate
+    ```
+  </Step>
+
+  <Step title="Collect static files">
+    ```bash
+    python manage.py collectstatic --no-input
+    ```
+  </Step>
+
+  <Step title="Restart services">
+    ```bash
+    exit
+    sudo systemctl restart osinthub
+    sudo systemctl restart osinthub-celery
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+- [Configure Environment Variables](/deployment/environment-variables)
+- [Deploy to PythonAnywhere](/deployment/pythonanywhere)
+- Review security.txt at `/.well-known/security.txt`

@@ -1,0 +1,507 @@
+---
+title: Username Search
+description: Find social media profiles and online accounts across 300+ platforms using Sherlock
+icon: user-magnifying-glass
+---
+
+## Overview
+
+The Username Search tool uses [Sherlock](https://github.com/sherlock-project/sherlock) to hunt down social media accounts and online profiles associated with a specific username across 300+ websites and platforms.
+
+<Note>
+  Sherlock checks for username presence on platforms including social networks, gaming sites, forums, dating apps, professional networks, and more.
+</Note>
+
+## How It Works
+
+The tool executes Sherlock as a subprocess, parses the output to identify matching profiles, and persists results to both session storage and disk for audit trails.
+
+### Technical Implementation
+
+From `UsernameSearch/views.py:49-82`:
+
+```python
+def _run_sherlock(username, timeout=300):
+    """Run Sherlock and return a list of result dicts."""
+    cmd_mod = [
+        sys.executable,
+        "-m",
+        "sherlock",
+        username,
+        "--timeout",
+        "15",
+        "--no-color",
+    ]
+    
+    try:
+        proc = subprocess.run(
+            cmd_mod, 
+            capture_output=True, 
+            text=True, 
+            timeout=timeout
+        )
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
+    except subprocess.TimeoutExpired:
+        return [{
+            "site": "Timeout",
+            "url": None,
+            "exists": False,
+            "error": "La búsqueda tardó demasiado",
+        }]
+```
+
+## Usage
+
+<Steps>
+  <Step title="Enter Username">
+    Input the target username in the search form. You can optionally include the `@` prefix - it will be automatically stripped.
+    
+    **Validation Rules:**
+    - 2-64 characters
+    - Letters, numbers, dots, underscores, and hyphens allowed
+    - No special characters or spaces
+  </Step>
+  
+  <Step title="Execute Search">
+    Click search to begin the Sherlock scan. The process has:
+    
+    - **Per-site timeout**: 15 seconds
+    - **Total timeout**: 300 seconds (5 minutes)
+  </Step>
+  
+  <Step title="View Results">
+    Results are displayed in two modes:
+    
+    - **Found Only** (default): Shows only platforms where the username exists
+    - **Show All**: Displays all checked platforms with status
+    
+    Each result includes:
+    - Platform name
+    - Profile URL
+    - Existence status
+    - Any errors encountered
+  </Step>
+  
+  <Step title="Download Results">
+    Export results as CSV for further analysis or record-keeping.
+  </Step>
+</Steps>
+
+## Username Validation
+
+From `UsernameSearch/forms.py:21-34`:
+
+```python
+def clean_username(self):
+    username = self.cleaned_data.get("username", "").strip()
+    
+    # Remove leading @ if provided
+    if username.startswith("@"):
+        username = username[1:]
+    
+    # Basic validation: allow letters, numbers, dots, underscores and hyphens
+    if not re.match(r"^[A-Za-z0-9_.-]{2,64}$", username):
+        raise forms.ValidationError(
+            "Nombre de usuario inválido. Usa letras, números, '_', '-' o '.' (2-64 caracteres)."
+        )
+    
+    return username
+```
+
+## Result Parsing
+
+Sherlock output is parsed to extract platform matches:
+
+From `UsernameSearch/views.py:111-118`:
+
+```python
+for line in (stdout or "").splitlines():
+    line = line.strip()
+    match = re.search(r"\[\+\]\s+([^:]+):\s+(http.*)$", line)
+    
+    if match:
+        site = match.group(1).strip()
+        url = match.group(2).strip()
+        results.append({"site": site, "url": url, "exists": True})
+```
+
+### Output Format
+
+Sherlock's typical output format:
+```
+[+] Instagram: https://www.instagram.com/username
+[+] Twitter: https://twitter.com/username
+[-] Facebook: Not Found!
+```
+
+The parser extracts lines with `[+]` markers indicating found profiles.
+
+## File Sanitization
+
+<Warning>
+  **Security: Directory Traversal Prevention**
+  
+  The tool implements strict filename sanitization to prevent directory traversal attacks.
+</Warning>
+
+From `UsernameSearch/views.py:28-46`:
+
+```python
+def get_safe_filename(filename):
+    if secure_filename:
+        # Use Werkzeug if available
+        safe = secure_filename(filename)
+    else:
+        # Fallback: Remove all non-alphanumeric characters
+        safe = re.sub(r"[^a-zA-Z0-9]", "", str(filename).strip())
+    
+    # If empty after cleaning, use default
+    if not safe:
+        safe = "unknown_user"
+    
+    return safe
+```
+
+This prevents malicious usernames like:
+- `../../../etc/passwd`
+- `..\\..\\..\\windows\\system32`
+- `user; rm -rf /`
+
+## Result Persistence
+
+Results are saved in multiple formats for audit trails and analysis:
+
+### Storage Location
+
+From `UsernameSearch/views.py:146-168`:
+
+```python
+search_root = getattr(settings, "SEARCH_RESULTS_DIR", None)
+if not search_root:
+    try:
+        search_root = os.path.expanduser("~/.local/share/osint_hub")
+    except Exception:
+        search_root = None
+
+if not search_root:
+    project_base = getattr(settings, "BASE_DIR", None)
+    if project_base:
+        search_root = os.path.join(project_base, "search_results")
+
+if search_root:
+    base_results = os.path.join(search_root, safe_filename)
+    os.makedirs(base_results, exist_ok=True)
+```
+
+### File Formats
+
+#### JSON Format
+
+```json
+[
+  {
+    "site": "Instagram",
+    "url": "https://www.instagram.com/username",
+    "exists": true
+  },
+  {
+    "site": "Twitter",
+    "url": "https://twitter.com/username",
+    "exists": true
+  }
+]
+```
+
+#### Text Format
+
+```plaintext
+Sherlock results for: username
+Timestamp: 2026-03-05T12:34:56Z
+
+Instagram	https://www.instagram.com/username	YES
+Twitter	https://twitter.com/username	YES
+Facebook	-	NO
+```
+
+From `UsernameSearch/views.py:180-212`:
+
+```python
+timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+
+json_path = os.path.join(
+    base_results, 
+    f"sherlock_{safe_filename}_{timestamp}.json"
+)
+with open(json_path, "w", encoding="utf-8") as jf:
+    json.dump(results, jf, ensure_ascii=False, indent=2)
+
+txt_path = os.path.join(
+    base_results, 
+    f"sherlock_{safe_filename}_{timestamp}.txt"
+)
+```
+
+## Auto-Cleanup
+
+The tool implements automatic cleanup of old result files:
+
+From `UsernameSearch/views.py:217-243`:
+
+```python
+cnt = int(request.session.get("username_search_dir_clean_count", 0)) + 1
+request.session["username_search_dir_clean_count"] = cnt
+
+if base_results and cnt >= 3:
+    try:
+        for fname in os.listdir(base_results):
+            path = os.path.join(base_results, fname)
+            try:
+                if os.path.isfile(path) or os.path.islink(path):
+                    os.unlink(path)
+                elif os.path.isdir(path):
+                    shutil.rmtree(path)
+            except Exception:
+                logger.exception("Failed to remove result file")
+    except Exception:
+        logger.exception("Failed to iterate results dir")
+    
+    request.session["username_search_dir_clean_count"] = 0
+```
+
+Cleanup triggers every 3 searches to prevent disk space accumulation.
+
+## API Endpoints
+
+Defined in `UsernameSearch/urls.py`:
+
+| Endpoint | View Function | Purpose |
+|----------|--------------|----------|
+| `/search/` | `search_username` | Search form and execution |
+| `/results/` | `show_results` | Display formatted results |
+| `/download/` | `download_results` | Export results as CSV |
+
+## CSV Export
+
+Results can be downloaded in CSV format:
+
+From `UsernameSearch/views.py:355-383`:
+
+```python
+def download_results(request):
+    results = request.session.get("username_search_results", [])
+    username = request.session.get("username_search_username", "-")
+    safe_filename = get_safe_filename(username)
+    
+    sio = StringIO()
+    writer = csv.writer(sio)
+    writer.writerow(["site", "url", "exists", "error"])
+    
+    if results:
+        for r in results:
+            site = r.get("site") or ""
+            url = r.get("url") or ""
+            exists = "YES" if r.get("exists") else "NO"
+            error = r.get("error") or ""
+            writer.writerow([site, url, exists, error])
+    
+    content = sio.getvalue()
+    filename = f"sherlock_{safe_filename}.csv"
+    response = HttpResponse(content, content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+```
+
+## Result Filtering
+
+The results page supports two display modes:
+
+From `UsernameSearch/views.py:330-334`:
+
+```python
+show_all = request.GET.get("show_all") in ("1", "true", "yes")
+if show_all:
+    displayed = results
+else:
+    displayed = [r for r in results if r.get("exists")]
+```
+
+- **Default**: Only shows platforms where username exists
+- **Show All**: Displays all checked platforms (found and not found)
+
+## Sherlock Fallback
+
+If the module execution fails, the tool tries the command-line executable:
+
+From `UsernameSearch/views.py:84-107`:
+
+```python
+if not stdout:
+    sherlock_exe = shutil.which("sherlock")
+    if not sherlock_exe:
+        bin_path = os.path.dirname(sys.executable)
+        possible = os.path.join(bin_path, "sherlock")
+        if os.path.exists(possible):
+            sherlock_exe = possible
+    
+    if sherlock_exe:
+        cmd = [
+            sherlock_exe,
+            username,
+            "--timeout",
+            "15",
+            "--print-all",
+            "--no-color",
+        ]
+        proc = subprocess.run(
+            cmd, 
+            capture_output=True, 
+            text=True, 
+            timeout=timeout
+        )
+        stdout = proc.stdout or ""
+```
+
+## Error Detection
+
+The tool detects IP blocking and rate limiting:
+
+From `UsernameSearch/views.py:120-128`:
+
+```python
+if not results and "Blocked" in stdout:
+    results.append({
+        "site": "Aviso",
+        "url": None,
+        "exists": False,
+        "error": "IP Bloqueada por varios sitios",
+    })
+```
+
+## Use Cases
+
+### Social Media Investigation
+- Map an individual's online presence
+- Discover hidden or alternate accounts
+- Identify cross-platform patterns
+
+### Threat Intelligence
+- Track threat actor personas
+- Correlate usernames across forums
+- Identify infrastructure operators
+
+### Brand Monitoring
+- Find impersonation accounts
+- Track brand mentions across platforms
+- Identify unauthorized use of trademarks
+
+### Background Checks
+- Verify online activity claims
+- Discover public profiles
+- Assess digital footprint
+
+### Cyberbullying Investigation
+- Identify harassment accounts
+- Track perpetrator activity
+- Gather evidence for law enforcement
+
+## Supported Platforms
+
+Sherlock checks 300+ platforms including:
+
+### Social Media
+- Instagram, Twitter, Facebook, LinkedIn
+- TikTok, Snapchat, Pinterest
+- Reddit, Tumblr, Medium
+
+### Professional
+- GitHub, GitLab, Bitbucket
+- Stack Overflow, HackerRank
+- Behance, Dribbble, DeviantArt
+
+### Gaming
+- Steam, Xbox Live, PlayStation Network
+- Twitch, Discord (limited)
+- Roblox, Minecraft
+
+### Dating & Social
+- Match.com, OkCupid, POF
+- Badoo, Meetup
+
+### Forums & Communities
+- 4chan, 8chan (archived)
+- HackForums, Cracked.to
+- Various niche forums
+
+## Performance Considerations
+
+- **Per-site timeout**: 15 seconds
+- **Total timeout**: 300 seconds (5 minutes)
+- **Concurrent checks**: Sherlock handles parallelization internally
+- **Average duration**: 60-120 seconds for full scan
+- **Rate limiting**: Some platforms may block after repeated queries
+
+<Note>
+  Search duration varies based on:
+  - Number of active platforms in Sherlock's database
+  - Network latency
+  - Rate limiting by target sites
+  - Server response times
+</Note>
+
+## Limitations
+
+<Warning>
+  - **False Positives**: Common usernames may exist on many platforms
+  - **False Negatives**: Some platforms may have anti-scraping measures
+  - **Rate Limiting**: IP may be temporarily blocked by aggressive sites
+  - **Sherlock Database**: Results limited to platforms in Sherlock's database
+  - **Username Format**: Some platforms have different username rules
+  - **Private Profiles**: Cannot detect private/hidden accounts
+</Warning>
+
+## Privacy & Legal Considerations
+
+<Warning>
+  **Responsible Use**
+  
+  - Respect platform Terms of Service
+  - Comply with applicable laws (GDPR, CCPA, etc.)
+  - Obtain proper authorization for investigations
+  - Do not use for harassment or stalking
+  - Consider rate limiting to avoid IP blocks
+  - Document legitimate purpose for searches
+</Warning>
+
+## Troubleshooting
+
+### Sherlock Not Found
+
+If you receive "Sherlock no está instalado" error:
+
+```bash
+pip install sherlock-project
+# or
+python -m pip install sherlock-project
+```
+
+### Timeout Errors
+
+If searches frequently timeout:
+- Check network connectivity
+- Consider reducing per-site timeout
+- Verify no firewall blocking
+
+### IP Blocked Message
+
+If you see "IP Bloqueada por varios sitios":
+- Wait before retrying (rate limiting)
+- Consider using a VPN or proxy
+- Reduce search frequency
+
+### No Results
+
+If legitimate username returns no results:
+- Verify username spelling
+- Check if platforms have changed their URLs
+- Update Sherlock to latest version: `pip install --upgrade sherlock-project`

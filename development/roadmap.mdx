@@ -1,0 +1,447 @@
+---
+title: Roadmap
+description: Future plans and upcoming features for OSINT Hub
+icon: map
+---
+
+<Note>
+  This roadmap outlines planned features and improvements for OSINT Hub. Priorities may change based on community feedback and contributions.
+</Note>
+
+## Vision
+
+OSINT Hub aims to be the most comprehensive and user-friendly centralized platform for open-source intelligence gathering tools. Our goal is to make professional OSINT capabilities accessible to investigators, researchers, journalists, and security professionals worldwide.
+
+## Planned Features
+
+The following features are planned for future releases. Community contributions are welcome!
+
+### User Authentication System
+
+<Card title="User Authentication" icon="user-lock">
+  **Status:** Planned
+  
+  **Description:**
+  - User registration and login system
+  - Personal dashboards for each user
+  - Search history tracking
+  - Saved search results
+  - User preferences and settings
+  - Role-based access control
+  
+  **Benefits:**
+  - Personalized experience
+  - Track investigation progress
+  - Collaborate with team members
+  - Privacy and data segregation
+  
+  **Technical Considerations:**
+  - Django authentication system
+  - Secure password handling
+  - Session management
+  - Optional OAuth integration (Google, GitHub)
+</Card>
+
+### REST API
+
+<Card title="REST API for Programmatic Access" icon="code">
+  **Status:** Planned
+  
+  **Description:**
+  - RESTful API for all OSINT tools
+  - Token-based authentication
+  - Rate limiting and quotas
+  - API documentation (Swagger/OpenAPI)
+  - Webhook support for async operations
+  - Multiple output formats (JSON, XML, CSV)
+  
+  **Benefits:**
+  - Integrate with other tools and scripts
+  - Automate investigations
+  - Build custom workflows
+  - Third-party integrations
+  
+  **Endpoints:**
+  - `/api/email/search/`
+  - `/api/user/search/`
+  - `/api/ip/lookup/`
+  - `/api/phone/search/`
+  - `/api/exif/extract/`
+  - `/api/hash/generate/`
+  
+  **Technical Stack:**
+  - Django REST Framework
+  - Token authentication
+  - django-ratelimit
+  - drf-spectacular for docs
+</Card>
+
+### PDF Export
+
+<Card title="Export Results to PDF" icon="file-pdf">
+  **Status:** Planned
+  
+  **Description:**
+  - Generate professional PDF reports
+  - Include search parameters and results
+  - Custom branding options
+  - Timestamp and metadata
+  - Charts and visualizations
+  - Watermarking support
+  
+  **Benefits:**
+  - Professional reporting
+  - Evidence preservation
+  - Easy sharing with stakeholders
+  - Legal documentation
+  
+  **Features:**
+  - Customizable report templates
+  - Multiple export formats (PDF, DOCX)
+  - Batch export for multiple searches
+  - Privacy controls (redaction)
+  
+  **Technical Implementation:**
+  - ReportLab or WeasyPrint
+  - Custom PDF templates
+  - Async generation for large reports
+</Card>
+
+### Usage Dashboard
+
+<Card title="Dashboard with Statistics" icon="chart-line">
+  **Status:** Planned
+  
+  **Description:**
+  - Real-time usage statistics
+  - Search history visualization
+  - Tool popularity metrics
+  - Performance monitoring
+  - Search success rates
+  - Time-based analytics
+  
+  **Visualizations:**
+  - Searches per tool (pie chart)
+  - Search trends over time (line graph)
+  - Geographic distribution of IP lookups
+  - Most searched usernames/emails
+  - System health metrics
+  
+  **Benefits:**
+  - Understand usage patterns
+  - Optimize tool performance
+  - Identify popular features
+  - Plan future developments
+  
+  **Technical Stack:**
+  - Chart.js or D3.js
+  - Real-time updates with WebSockets
+  - Caching for performance
+</Card>
+
+### Additional OSINT Tools
+
+<Card title="Integration with More OSINT Tools" icon="screwdriver-wrench">
+  **Status:** Planned
+  
+  **Description:**
+  Integrate additional OSINT tools to expand capabilities:
+  
+  **Planned Tools:**
+  
+  <Accordion title="DNS Lookup" icon="server">
+    - DNS record queries (A, AAAA, MX, TXT, CNAME)
+    - Reverse DNS lookup
+    - DNS history
+    - WHOIS information
+    - Subdomain enumeration
+  </Accordion>
+  
+  <Accordion title="Website Analysis" icon="globe">
+    - Website screenshots
+    - Technology detection
+    - SSL certificate info
+    - HTTP headers analysis
+    - Robots.txt and sitemap parsing
+  </Accordion>
+  
+  <Accordion title="Social Media Analysis" icon="share-nodes">
+    - Profile information aggregation
+    - Post history search
+    - Connection mapping
+    - Activity timeline
+    - Sentiment analysis
+  </Accordion>
+  
+  <Accordion title="Data Breach Search" icon="database">
+    - HaveIBeenPwned integration
+    - Password breach checking
+    - Data leak monitoring
+    - Breach notifications
+  </Accordion>
+  
+  <Accordion title="Document Analysis" icon="file-lines">
+    - Text extraction from PDFs
+    - Document metadata analysis
+    - OCR for images
+    - Language detection
+    - Entity extraction
+  </Accordion>
+  
+  <Accordion title="Image Search" icon="image">
+    - Reverse image search
+    - Face detection
+    - Image similarity matching
+    - Steganography detection
+  </Accordion>
+</Card>
+
+### Social Media Integration
+
+<Card title="Social Media Intelligence" icon="hashtag">
+  **Status:** Planned
+  
+  **Description:**
+  - Direct social media platform integration
+  - Profile search across platforms
+  - Post and content analysis
+  - Network mapping and visualization
+  - Timeline reconstruction
+  - Sentiment analysis
+  
+  **Platforms:**
+  - Twitter/X
+  - Facebook
+  - Instagram
+  - LinkedIn
+  - TikTok
+  - Reddit
+  - Telegram
+  
+  **Features:**
+  - Profile data aggregation
+  - Connection graph visualization
+  - Activity timeline
+  - Post archiving
+  - Keyword monitoring
+  - Location tracking (when available)
+  
+  **Challenges:**
+  - API rate limits
+  - Terms of service compliance
+  - Authentication requirements
+  - Data privacy regulations
+</Card>
+
+## Enhancement Roadmap
+
+Improvements to existing features:
+
+<AccordionGroup>
+  <Accordion title="Performance Optimization" icon="gauge-high">
+    - Implement caching for frequent queries
+    - Optimize database queries
+    - Add pagination for large result sets
+    - Reduce page load times
+    - Background job processing for heavy tasks
+  </Accordion>
+
+  <Accordion title="User Experience" icon="sparkles">
+    - Improved search result visualization
+    - Advanced filtering options
+    - Keyboard shortcuts
+    - Mobile app (Progressive Web App)
+    - Dark mode improvements
+    - Accessibility enhancements (WCAG 2.1)
+  </Accordion>
+
+  <Accordion title="Search Capabilities" icon="magnifying-glass">
+    - Batch search functionality
+    - Advanced search operators
+    - Search result comparison
+    - Historical search tracking
+    - Scheduled searches
+    - Search alerts and notifications
+  </Accordion>
+
+  <Accordion title="Collaboration Features" icon="users">
+    - Team workspaces
+    - Shared investigations
+    - Comments and annotations
+    - Real-time collaboration
+    - Investigation templates
+    - Case management
+  </Accordion>
+
+  <Accordion title="Data Management" icon="folder">
+    - Advanced export options
+    - Import/export investigations
+    - Data retention policies
+    - Automatic archiving
+    - Backup and restore
+    - GDPR compliance tools
+  </Accordion>
+
+  <Accordion title="Integration & Automation" icon="robot">
+    - Zapier integration
+    - Webhook support
+    - SIEM integration
+    - Custom automation workflows
+    - Integration with case management systems
+    - CLI tools
+  </Accordion>
+</AccordionGroup>
+
+## Technical Improvements
+
+<CardGroup cols={2}>
+  <Card title="Testing" icon="vial">
+    - Comprehensive unit tests
+    - Integration tests
+    - End-to-end testing
+    - Performance testing
+    - Security testing
+    - Continuous integration
+  </Card>
+
+  <Card title="Documentation" icon="book">
+    - API documentation
+    - Video tutorials
+    - Best practices guides
+    - Troubleshooting guides
+    - Contribution guidelines
+    - Architecture documentation
+  </Card>
+
+  <Card title="Infrastructure" icon="cloud">
+    - Docker containerization
+    - Kubernetes deployment
+    - Load balancing
+    - Auto-scaling
+    - CDN integration
+    - Multi-region support
+  </Card>
+
+  <Card title="Monitoring" icon="display">
+    - Error tracking (Sentry)
+    - Performance monitoring
+    - Usage analytics
+    - Uptime monitoring
+    - Alert system
+    - Health checks
+  </Card>
+</CardGroup>
+
+## Security Enhancements
+
+<Steps>
+  <Step title="Enhanced Authentication">
+    - Two-factor authentication (2FA)
+    - SSO integration
+    - Biometric authentication
+    - Session management improvements
+  </Step>
+
+  <Step title="Data Protection">
+    - End-to-end encryption
+    - Data anonymization
+    - Secure data deletion
+    - Privacy-preserving analytics
+  </Step>
+
+  <Step title="Compliance">
+    - GDPR compliance
+    - SOC 2 certification
+    - Regular security audits
+    - Penetration testing
+  </Step>
+
+  <Step title="Access Control">
+    - Fine-grained permissions
+    - IP whitelisting
+    - Activity logging
+    - Audit trails
+  </Step>
+</Steps>
+
+## Community Contributions
+
+<Note>
+  We welcome community contributions! If you're interested in working on any of these features, please open an issue on GitHub to discuss the implementation.
+</Note>
+
+### How to Contribute
+
+1. Check the roadmap for features of interest
+2. Open a GitHub issue to discuss your approach
+3. Fork the repository and create a feature branch
+4. Implement the feature following contribution guidelines
+5. Submit a pull request with documentation
+
+### Priority Features
+
+The community can help prioritize features by:
+- Voting on GitHub issues
+- Contributing to discussions
+- Submitting pull requests
+- Sponsoring development
+
+## Release Timeline
+
+<Tabs>
+  <Tab title="Q2 2026">
+    **Focus: Core Enhancements**
+    
+    - Performance optimization
+    - UI/UX improvements
+    - Bug fixes and stability
+    - Documentation updates
+  </Tab>
+  
+  <Tab title="Q3 2026">
+    **Focus: User Features**
+    
+    - User authentication system
+    - Dashboard with statistics
+    - Search history tracking
+    - PDF export functionality
+  </Tab>
+  
+  <Tab title="Q4 2026">
+    **Focus: API & Integration**
+    
+    - REST API implementation
+    - API documentation
+    - Webhook support
+    - Third-party integrations
+  </Tab>
+  
+  <Tab title="2027">
+    **Focus: Expansion**
+    
+    - Additional OSINT tools
+    - Social media integration
+    - Advanced analytics
+    - Enterprise features
+  </Tab>
+</Tabs>
+
+## Feedback and Suggestions
+
+We value your input! Share your ideas and suggestions:
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github">
+    Submit feature requests and bug reports on our GitHub repository
+  </Card>
+
+  <Card title="Email" icon="envelope">
+    Contact the maintainer: nakajito@proton.me
+  </Card>
+</CardGroup>
+
+---
+
+<Note>
+  This roadmap is subject to change based on community needs, technical feasibility, and resource availability. Star the project on GitHub to stay updated!
+</Note>

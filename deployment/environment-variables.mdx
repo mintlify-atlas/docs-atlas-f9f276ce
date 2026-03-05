@@ -1,0 +1,508 @@
+---
+title: 'Environment Variables'
+description: 'Complete reference for all OSINT Hub environment variables'
+icon: 'key'
+---
+
+## Overview
+
+OSINT Hub uses environment variables for configuration management via the `.env` file. This approach keeps sensitive credentials and environment-specific settings out of version control.
+
+<Warning>
+  Never commit your `.env` file to version control. It contains sensitive information like `SECRET_KEY` and database credentials.
+</Warning>
+
+## Configuration File
+
+Create a `.env` file in the project root directory:
+
+```bash
+cp .env.example .env
+```
+
+Edit the file with your specific configuration values.
+
+## Core Variables
+
+### SECRET_KEY
+
+**Required:** Yes  
+**Default:** None  
+**Description:** Django's secret key for cryptographic signing. Used for session management, CSRF protection, and password reset tokens.
+
+**Example:**
+```env
+SECRET_KEY=django-insecure-k8h_7&x!s3@2(9p$nv0w^m6+q4r5t#1y
+```
+
+**Generation:**
+Generate a secure key using:
+```bash
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+<Warning>
+  Use a long, random, unique value. Never share this key publicly or reuse it across environments.
+</Warning>
+
+**Configuration:** Set in `osint_hub/settings.py:10-12`
+
+---
+
+### DEBUG
+
+**Required:** No  
+**Default:** `True`  
+**Type:** Boolean  
+**Description:** Enables Django debug mode. Shows detailed error pages with stack traces and SQL queries.
+
+**Example:**
+```env
+DEBUG=True   # Development
+DEBUG=False  # Production
+```
+
+**Values:**
+- `True` - Enable debug mode (development only)
+- `False` - Disable debug mode (production)
+
+<Warning>
+  ALWAYS set `DEBUG=False` in production. Debug mode exposes sensitive information including environment variables, database queries, and file paths.
+</Warning>
+
+**Configuration:** Set in `osint_hub/settings.py:13`
+
+---
+
+### ALLOWED_HOSTS
+
+**Required:** Yes (when `DEBUG=False`)  
+**Default:** `localhost,127.0.0.1`  
+**Type:** Comma-separated string  
+**Description:** List of domain names and IP addresses that can serve the application. Django will refuse requests with `Host` headers not in this list.
+
+**Example:**
+```env
+# Development
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+# Production
+ALLOWED_HOSTS=osinthub.com,www.osinthub.com,192.168.1.100
+
+# PythonAnywhere
+ALLOWED_HOSTS=yourusername.pythonanywhere.com
+```
+
+**Format:**
+- No spaces between hostnames
+- Separate multiple hosts with commas
+- Include both www and non-www versions if applicable
+- Can include IP addresses
+
+**Configuration:** Set in `osint_hub/settings.py:16-20`
+
+---
+
+### CSRF_TRUSTED_ORIGINS
+
+**Required:** Yes (when `DEBUG=False`)  
+**Default:** Empty  
+**Type:** Comma-separated string of URLs  
+**Description:** List of trusted origins for unsafe requests (POST, PUT, DELETE). Required for CSRF protection when your app is behind a proxy or uses HTTPS.
+
+**Example:**
+```env
+# Development
+CSRF_TRUSTED_ORIGINS=http://localhost:8000
+
+# Production
+CSRF_TRUSTED_ORIGINS=https://osinthub.com,https://www.osinthub.com
+
+# PythonAnywhere
+CSRF_TRUSTED_ORIGINS=https://yourusername.pythonanywhere.com
+```
+
+**Format:**
+- Must include the full URL scheme (`http://` or `https://`)
+- No trailing slashes
+- Separate multiple origins with commas
+- Use HTTPS in production
+
+<Warning>
+  Ensure this matches your domain exactly, including the protocol (http/https). Mismatches cause "CSRF verification failed" errors.
+</Warning>
+
+**Configuration:** Set in `osint_hub/settings.py:153-157`
+
+---
+
+### DATABASE_URL
+
+**Required:** No  
+**Default:** `sqlite:///db.sqlite3`  
+**Type:** Database URL string  
+**Description:** Database connection URL. Supports SQLite, PostgreSQL, MySQL, and other databases via the `dj-database-url` library.
+
+**Examples:**
+
+<CodeGroup>
+```env SQLite (Development)
+DATABASE_URL=sqlite:///db.sqlite3
+```
+
+```env PostgreSQL (Production)
+DATABASE_URL=postgres://username:password@localhost:5432/osint_hub
+```
+
+```env PostgreSQL with SSL
+DATABASE_URL=postgres://username:password@host:5432/dbname?sslmode=require
+```
+
+```env MySQL
+DATABASE_URL=mysql://username:password@localhost:3306/osint_hub
+```
+</CodeGroup>
+
+**Format:** `scheme://username:password@host:port/database`
+
+**Schemes:**
+- `sqlite` - SQLite database (local file)
+- `postgres` or `postgresql` - PostgreSQL
+- `mysql` - MySQL or MariaDB
+
+**Note:** While `DATABASE_URL` is defined in `.env.example`, the current `settings.py` implementation uses a hardcoded SQLite configuration. To use `DATABASE_URL`, modify `osint_hub/settings.py:75-80` to:
+
+```python
+DATABASES = {
+    'default': dj_database_url.config(
+        default='sqlite:///db.sqlite3',
+        conn_max_age=600
+    )
+}
+```
+
+---
+
+## Optional Variables
+
+### SEARCH_RESULTS_DIR
+
+**Required:** No  
+**Default:** `~/.local/share/osint_hub/search_results`  
+**Type:** Absolute file path  
+**Description:** Directory where username search results (Sherlock) are stored. Should be persistent across deployments.
+
+**Example:**
+```env
+# Default (automatic)
+SEARCH_RESULTS_DIR=~/.local/share/osint_hub/search_results
+
+# Custom path
+SEARCH_RESULTS_DIR=/var/lib/osint_hub/results
+
+# PythonAnywhere
+SEARCH_RESULTS_DIR=/home/yourusername/osint_hub/results
+```
+
+**Permissions:** Ensure the directory is writable by the application user.
+
+**Configuration:** Set in `osint_hub/settings.py:135-138`
+
+---
+
+### CELERY_BROKER_URL
+
+**Required:** Only if using Celery  
+**Default:** `redis://localhost:6379/0`  
+**Type:** URL string  
+**Description:** Message broker URL for Celery task queue. Typically Redis or RabbitMQ.
+
+**Example:**
+```env
+# Local Redis
+CELERY_BROKER_URL=redis://localhost:6379/0
+
+# Remote Redis
+CELERY_BROKER_URL=redis://user:password@redis-host:6379/0
+
+# RabbitMQ
+CELERY_BROKER_URL=amqp://user:password@localhost:5672//
+```
+
+**Note:** Currently hardcoded in `osint_hub/settings.py:172`. To make it configurable, add:
+
+```python
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+```
+
+---
+
+### CELERY_RESULT_BACKEND
+
+**Required:** Only if using Celery with result storage  
+**Default:** `redis://localhost:6379/0`  
+**Type:** URL string  
+**Description:** Backend for storing Celery task results.
+
+**Example:**
+```env
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+```
+
+**Note:** Currently hardcoded in `osint_hub/settings.py:173`.
+
+---
+
+### EXIFTOOL_PATH
+
+**Required:** Only if ExifTool is in a non-standard location  
+**Default:** `/usr/bin/exiftool` or `/usr/local/bin/exiftool`  
+**Type:** Absolute file path  
+**Description:** Path to the ExifTool binary for metadata extraction.
+
+**Example:**
+```env
+# Ubuntu/Debian
+EXIFTOOL_PATH=/usr/bin/exiftool
+
+# macOS (Homebrew)
+EXIFTOOL_PATH=/usr/local/bin/exiftool
+
+# Custom installation
+EXIFTOOL_PATH=/opt/exiftool/bin/exiftool
+```
+
+**Installation:**
+```bash
+# Ubuntu/Debian
+sudo apt install libimage-exiftool-perl
+
+# macOS
+brew install exiftool
+```
+
+**Note:** Currently hardcoded with fallback logic in `osint_hub/settings.py:164-168`.
+
+---
+
+## Environment-Specific Examples
+
+### Development (.env)
+
+```env
+SECRET_KEY=django-insecure-dev-key-not-for-production
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+CSRF_TRUSTED_ORIGINS=http://localhost:8000
+DATABASE_URL=sqlite:///db.sqlite3
+```
+
+### Production (.env)
+
+```env
+SECRET_KEY=production-secret-key-very-long-and-random-string-here
+DEBUG=False
+ALLOWED_HOSTS=osinthub.com,www.osinthub.com
+CSRF_TRUSTED_ORIGINS=https://osinthub.com,https://www.osinthub.com
+DATABASE_URL=postgres://osint_user:secure_password@localhost:5432/osint_hub
+SEARCH_RESULTS_DIR=/var/lib/osint_hub/results
+```
+
+### PythonAnywhere (.env)
+
+```env
+SECRET_KEY=pythonanywhere-secret-key-generated-randomly
+DEBUG=False
+ALLOWED_HOSTS=yourusername.pythonanywhere.com
+CSRF_TRUSTED_ORIGINS=https://yourusername.pythonanywhere.com
+DATABASE_URL=sqlite:///db.sqlite3
+SEARCH_RESULTS_DIR=/home/yourusername/osint_hub/results
+```
+
+### Docker (.env)
+
+```env
+SECRET_KEY=docker-secret-key-for-container
+DEBUG=False
+ALLOWED_HOSTS=localhost,127.0.0.1,osinthub.local
+CSRF_TRUSTED_ORIGINS=http://localhost:8000
+DATABASE_URL=postgres://osint_user:password@db:5432/osint_hub
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
+```
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Never commit .env files">
+    Ensure `.env` is in your `.gitignore`:
+
+    ```bash
+    echo ".env" >> .gitignore
+    ```
+  </Step>
+
+  <Step title="Use strong SECRET_KEY">
+    Generate a unique, random key for each environment:
+
+    ```bash
+    python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+    ```
+  </Step>
+
+  <Step title="Restrict file permissions">
+    Limit who can read your `.env` file:
+
+    ```bash
+    chmod 600 .env
+    ```
+  </Step>
+
+  <Step title="Use different keys per environment">
+    Never reuse SECRET_KEY across development, staging, and production.
+  </Step>
+
+  <Step title="Validate before deployment">
+    Check your configuration:
+
+    ```bash
+    python manage.py check --deploy
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### "SECRET_KEY" setting must not be empty
+
+**Cause:** `.env` file missing or `SECRET_KEY` not set.
+
+**Solution:**
+```bash
+cp .env.example .env
+# Edit .env and set SECRET_KEY
+```
+
+### DisallowedHost at /
+
+**Cause:** Current hostname not in `ALLOWED_HOSTS`.
+
+**Solution:**
+Add your hostname to `ALLOWED_HOSTS` in `.env`:
+```env
+ALLOWED_HOSTS=localhost,127.0.0.1,yourdomain.com
+```
+
+### CSRF verification failed
+
+**Cause:** Origin not in `CSRF_TRUSTED_ORIGINS` or wrong protocol.
+
+**Solution:**
+Ensure `CSRF_TRUSTED_ORIGINS` matches your full URL:
+```env
+CSRF_TRUSTED_ORIGINS=https://yourdomain.com
+```
+
+Note the `https://` protocol and no trailing slash.
+
+### Database connection errors
+
+**Cause:** Invalid `DATABASE_URL` or database not running.
+
+**Solution:**
+1. Verify database is running:
+   ```bash
+   sudo systemctl status postgresql
+   ```
+
+2. Test connection manually:
+   ```bash
+   psql -U username -h localhost -d database_name
+   ```
+
+3. Verify `DATABASE_URL` format:
+   ```env
+   DATABASE_URL=postgres://user:password@host:port/dbname
+   ```
+
+### Environment variables not loading
+
+**Cause:** `.env` file in wrong location or permissions issue.
+
+**Solution:**
+1. Ensure `.env` is in project root (same directory as `manage.py`)
+2. Check file permissions:
+   ```bash
+   ls -la .env
+   ```
+3. Verify `python-decouple` is installed:
+   ```bash
+   pip install python-decouple
+   ```
+
+## Loading Variables in Different Contexts
+
+### Django Management Commands
+
+Variables are automatically loaded via `python-decouple` when running:
+```bash
+python manage.py runserver
+python manage.py migrate
+```
+
+### Gunicorn (Production)
+
+Use `EnvironmentFile` in systemd service:
+
+```ini
+[Service]
+EnvironmentFile=/path/to/osint_hub/.env
+```
+
+### PythonAnywhere
+
+Variables are loaded from `.env` via the configured WSGI file.
+
+### Docker
+
+Pass via `docker-compose.yml`:
+
+```yaml
+services:
+  web:
+    env_file:
+      - .env
+```
+
+Or use `docker run`:
+```bash
+docker run --env-file .env myimage
+```
+
+### Shell Scripts
+
+Source the file:
+```bash
+export $(cat .env | xargs)
+python manage.py migrate
+```
+
+## Validation Checklist
+
+Before deploying, verify:
+
+- [ ] `SECRET_KEY` is set and unique
+- [ ] `DEBUG=False` in production
+- [ ] `ALLOWED_HOSTS` includes your domain
+- [ ] `CSRF_TRUSTED_ORIGINS` includes your full HTTPS URL
+- [ ] `DATABASE_URL` points to production database (if used)
+- [ ] `.env` file has restricted permissions (600)
+- [ ] `.env` is in `.gitignore`
+- [ ] All required services (Redis, PostgreSQL) are running
+- [ ] Run `python manage.py check --deploy` to catch issues
+
+## Next Steps
+
+- [Production Deployment Guide](/deployment/production)
+- [PythonAnywhere Deployment](/deployment/pythonanywhere)
+- Review Django's deployment checklist: [https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/](https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/)

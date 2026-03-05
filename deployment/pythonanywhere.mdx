@@ -1,0 +1,478 @@
+---
+title: 'PythonAnywhere Deployment'
+description: 'Deploy OSINT Hub to PythonAnywhere using the pre-configured WSGI file'
+icon: 'python'
+---
+
+## Overview
+
+PythonAnywhere is a Python-focused Platform-as-a-Service (PaaS) that simplifies Django deployment. OSINT Hub includes a pre-configured WSGI file (`pythonanywhere_wsgi.py`) specifically designed for PythonAnywhere.
+
+<Warning>
+  PythonAnywhere free accounts have limitations on external HTTP requests and may restrict some OSINT tool functionality. Consider a paid account for full features.
+</Warning>
+
+## Prerequisites
+
+- PythonAnywhere account (free or paid)
+- Basic familiarity with the PythonAnywhere dashboard
+- OSINT Hub repository access
+
+## Deployment Steps
+
+<Steps>
+  <Step title="Create a PythonAnywhere account">
+    Sign up at [https://www.pythonanywhere.com](https://www.pythonanywhere.com)
+
+    Choose a username - this will be part of your app URL: `https://YOUR_USERNAME.pythonanywhere.com`
+  </Step>
+
+  <Step title="Open a Bash console">
+    From your PythonAnywhere dashboard:
+    - Click on **Consoles** tab
+    - Click **Bash** to start a new console session
+  </Step>
+
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/Nakajito/osint_hub.git
+    cd osint_hub
+    ```
+  </Step>
+
+  <Step title="Create a virtual environment">
+    PythonAnywhere requires virtual environments in `~/.virtualenvs/`:
+
+    ```bash
+    mkvirtualenv osint_hub_env --python=/usr/bin/python3.12
+    ```
+
+    The environment will be automatically activated. To activate it later:
+    ```bash
+    workon osint_hub_env
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    ```bash
+    pip install --upgrade pip
+    pip install -r requirements.txt
+    ```
+
+    <Warning>
+      This may take 5-10 minutes on PythonAnywhere. Be patient.
+    </Warning>
+  </Step>
+
+  <Step title="Configure environment variables">
+    Create a `.env` file:
+
+    ```bash
+    cp .env.example .env
+    nano .env
+    ```
+
+    Update with your PythonAnywhere-specific settings:
+
+    ```env
+    SECRET_KEY=your-generated-secret-key
+    DEBUG=False
+    ALLOWED_HOSTS=YOUR_USERNAME.pythonanywhere.com
+    CSRF_TRUSTED_ORIGINS=https://YOUR_USERNAME.pythonanywhere.com
+    DATABASE_URL=sqlite:///db.sqlite3
+    ```
+
+    Generate a secure `SECRET_KEY`:
+    ```bash
+    python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+    ```
+
+    Replace `YOUR_USERNAME` with your actual PythonAnywhere username.
+  </Step>
+
+  <Step title="Run database migrations">
+    ```bash
+    python manage.py migrate
+    ```
+  </Step>
+
+  <Step title="Collect static files">
+    ```bash
+    python manage.py collectstatic --no-input
+    ```
+  </Step>
+
+  <Step title="Create superuser (optional)">
+    ```bash
+    python manage.py createsuperuser
+    ```
+  </Step>
+</Steps>
+
+## Web App Configuration
+
+<Steps>
+  <Step title="Create a new web app">
+    From your PythonAnywhere dashboard:
+    - Click on the **Web** tab
+    - Click **Add a new web app**
+    - Choose **Manual configuration** (not Django wizard)
+    - Select **Python 3.12**
+  </Step>
+
+  <Step title="Configure source code directory">
+    In the **Code** section:
+
+    **Source code:** `/home/YOUR_USERNAME/osint_hub`
+
+    Replace `YOUR_USERNAME` with your PythonAnywhere username.
+  </Step>
+
+  <Step title="Configure virtual environment">
+    In the **Virtualenv** section:
+
+    **Enter path to a virtualenv:** `/home/YOUR_USERNAME/.virtualenvs/osint_hub_env`
+
+    Click the checkmark to save.
+  </Step>
+
+  <Step title="Configure WSGI file">
+    In the **Code** section, click on the **WSGI configuration file** link (e.g., `/var/www/YOUR_USERNAME_pythonanywhere_com_wsgi.py`).
+
+    Delete all the default content and replace it with the contents of `pythonanywhere_wsgi.py`:
+
+    ```python
+    import os
+    import sys
+
+    # ==========================================
+    # CONFIGURATION - UPDATE THIS
+    # ==========================================
+    username = "YOUR_USERNAME"  # Replace with your PythonAnywhere username
+
+    # Project directory
+    path = f"/home/{username}/osint_hub"
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
+    # Virtual environment
+    virtualenv_path = f"/home/{username}/.virtualenvs/osint_hub_env"
+    activate_this = f"{virtualenv_path}/bin/activate_this.py"
+
+    # Activate virtual environment
+    try:
+        with open(activate_this) as file_:
+            exec(file_.read(), dict(__file__=activate_this))
+    except FileNotFoundError:
+        print(f"⚠️ WARNING: Virtual environment not found at {virtualenv_path}")
+        print("Ensure the virtual environment is created first")
+
+    # ==========================================
+    # DJANGO CONFIGURATION
+    # ==========================================
+    os.environ["DJANGO_SETTINGS_MODULE"] = "osint_hub.settings"
+
+    # Import Django WSGI application
+    from django.core.wsgi import get_wsgi_application
+    application = get_wsgi_application()
+    ```
+
+    **Important:** Replace `YOUR_USERNAME` with your actual PythonAnywhere username (appears twice in the file).
+
+    Click **Save** at the top of the editor.
+  </Step>
+
+  <Step title="Configure static files">
+    In the **Static files** section, add the following mapping:
+
+    | URL | Directory |
+    |-----|----------|
+    | `/static/` | `/home/YOUR_USERNAME/osint_hub/staticfiles/` |
+
+    Click the checkmark to save.
+  </Step>
+
+  <Step title="Reload the web app">
+    At the top of the **Web** tab, click the green **Reload YOUR_USERNAME.pythonanywhere.com** button.
+
+    Wait for the reload to complete (typically 10-20 seconds).
+  </Step>
+
+  <Step title="Test your deployment">
+    Visit `https://YOUR_USERNAME.pythonanywhere.com` in your browser.
+
+    You should see the OSINT Hub homepage.
+  </Step>
+</Steps>
+
+## PythonAnywhere-Specific Considerations
+
+### HTTP Request Whitelist
+
+PythonAnywhere free accounts restrict outbound HTTP requests to whitelisted sites only. Some OSINT tools may not work properly.
+
+**Affected tools:**
+- Email Search (Holehe) - may have limited results
+- Username Search (Sherlock) - may have limited results
+- IP Lookup - uses whitelisted APIs (should work)
+
+**Workaround:** Upgrade to a paid PythonAnywhere account for unrestricted outbound requests.
+
+### No Background Tasks (Free Accounts)
+
+Free PythonAnywhere accounts don't support long-running background processes like Celery.
+
+**Impact:**
+- Phone Search async tasks won't work properly
+- Some tools may time out on larger searches
+
+**Workaround:**
+- Upgrade to a paid account to enable scheduled tasks and always-on tasks
+- Modify views to run synchronously (not recommended for long operations)
+
+### File Size Limits
+
+PythonAnywhere has disk quota limits:
+- Free: 512 MB total disk space
+- Paid: Varies by plan
+
+**Recommendations:**
+- Periodically clean up uploaded files in `media/`
+- Limit EXIF tool file uploads to essential files only
+- Monitor disk usage in the **Files** tab
+
+### Database Limitations
+
+SQLite (default) works well for small to medium traffic. For high traffic, consider:
+- Upgrading to a paid account with MySQL/PostgreSQL support
+- Configuring a remote PostgreSQL database
+
+## Environment Variables in PythonAnywhere
+
+PythonAnywhere doesn't natively support `.env` files in the WSGI context. The `pythonanywhere_wsgi.py` file is already configured to load from `.env` via `python-decouple`.
+
+### Alternative: Set in WSGI file
+
+You can also set environment variables directly in the WSGI file:
+
+```python
+import os
+
+os.environ['SECRET_KEY'] = 'your-secret-key'
+os.environ['DEBUG'] = 'False'
+os.environ['ALLOWED_HOSTS'] = 'YOUR_USERNAME.pythonanywhere.com'
+# ... etc
+
+os.environ["DJANGO_SETTINGS_MODULE"] = "osint_hub.settings"
+
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()
+```
+
+<Warning>
+  If you set variables in the WSGI file, ensure the file has restricted permissions. Anyone with access to your account can read it.
+</Warning>
+
+## Troubleshooting
+
+### "ImportError" or "ModuleNotFoundError"
+
+**Cause:** Dependencies not installed or virtual environment not activated.
+
+**Solution:**
+```bash
+workon osint_hub_env
+pip install -r requirements.txt
+```
+
+Reload the web app.
+
+### Static files not loading (404 errors)
+
+**Cause:** Static files not collected or incorrect path mapping.
+
+**Solution:**
+```bash
+cd ~/osint_hub
+workon osint_hub_env
+python manage.py collectstatic --no-input
+```
+
+Verify the static files mapping in the **Web** tab matches:
+- URL: `/static/`
+- Directory: `/home/YOUR_USERNAME/osint_hub/staticfiles/`
+
+Reload the web app.
+
+### "DisallowedHost" error
+
+**Cause:** `ALLOWED_HOSTS` in `.env` doesn't include your PythonAnywhere domain.
+
+**Solution:**
+
+Edit `.env`:
+```env
+ALLOWED_HOSTS=YOUR_USERNAME.pythonanywhere.com
+```
+
+Reload the web app.
+
+### "CSRF verification failed"
+
+**Cause:** `CSRF_TRUSTED_ORIGINS` not configured correctly.
+
+**Solution:**
+
+Edit `.env`:
+```env
+CSRF_TRUSTED_ORIGINS=https://YOUR_USERNAME.pythonanywhere.com
+```
+
+Reload the web app.
+
+### Tools not working (HTTP request errors)
+
+**Cause:** PythonAnywhere whitelist restrictions (free accounts).
+
+**Solution:**
+- Upgrade to a paid account for unrestricted access
+- Check the PythonAnywhere whitelist: [https://www.pythonanywhere.com/whitelist/](https://www.pythonanywhere.com/whitelist/)
+
+### Error logs
+
+View error logs in the **Web** tab:
+- Click on **Log files**
+- Check **Error log** for Python exceptions
+- Check **Server log** for HTTP errors
+
+Alternatively, view from console:
+```bash
+tail -f /var/log/YOUR_USERNAME.pythonanywhere.com.error.log
+```
+
+## Updates and Maintenance
+
+<Steps>
+  <Step title="Open Bash console">
+    From the **Consoles** tab, start a new Bash console or reconnect to an existing one.
+  </Step>
+
+  <Step title="Activate virtual environment">
+    ```bash
+    workon osint_hub_env
+    cd ~/osint_hub
+    ```
+  </Step>
+
+  <Step title="Pull latest changes">
+    ```bash
+    git pull origin main
+    ```
+  </Step>
+
+  <Step title="Update dependencies">
+    ```bash
+    pip install --upgrade -r requirements.txt
+    ```
+  </Step>
+
+  <Step title="Run migrations">
+    ```bash
+    python manage.py migrate
+    ```
+  </Step>
+
+  <Step title="Collect static files">
+    ```bash
+    python manage.py collectstatic --no-input
+    ```
+  </Step>
+
+  <Step title="Reload web app">
+    From the **Web** tab, click **Reload YOUR_USERNAME.pythonanywhere.com**.
+  </Step>
+</Steps>
+
+## Custom Domain (Paid Accounts)
+
+Paid PythonAnywhere accounts support custom domains.
+
+<Steps>
+  <Step title="Configure DNS">
+    Add a CNAME record pointing to `YOUR_USERNAME.pythonanywhere.com`:
+
+    ```
+    CNAME   www   YOUR_USERNAME.pythonanywhere.com.
+    ```
+  </Step>
+
+  <Step title="Update PythonAnywhere settings">
+    In the **Web** tab, enter your custom domain and save.
+  </Step>
+
+  <Step title="Update environment variables">
+    Edit `.env` to include your custom domain:
+
+    ```env
+    ALLOWED_HOSTS=YOUR_USERNAME.pythonanywhere.com,www.yourdomain.com
+    CSRF_TRUSTED_ORIGINS=https://YOUR_USERNAME.pythonanywhere.com,https://www.yourdomain.com
+    ```
+  </Step>
+
+  <Step title="Enable HTTPS">
+    PythonAnywhere provides free HTTPS for custom domains. Enable it in the **Web** tab under **Security**.
+  </Step>
+</Steps>
+
+## Performance Optimization
+
+### Database Indexing
+
+For better query performance:
+
+```bash
+cd ~/osint_hub
+workon osint_hub_env
+python manage.py sqlsequencereset email_holehe UsernameSearch PhoneSearch | python manage.py dbshell
+```
+
+### Caching
+
+Consider implementing Django caching for frequently accessed data:
+
+```python
+# In settings.py
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'osint-hub-cache',
+    }
+}
+```
+
+### Static File Compression
+
+WhiteNoise automatically compresses static files. Ensure it's enabled in `settings.py` (already configured):
+
+```python
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+```
+
+## Security Considerations
+
+- Always set `DEBUG=False` in production
+- Use a strong, randomly generated `SECRET_KEY`
+- Regularly update dependencies: `pip list --outdated`
+- Monitor error logs for suspicious activity
+- Keep your PythonAnywhere account password secure
+- Enable two-factor authentication on your PythonAnywhere account
+
+## Next Steps
+
+- [Configure Environment Variables](/deployment/environment-variables)
+- [Production Deployment Guide](/deployment/production)
+- Check PythonAnywhere documentation: [https://help.pythonanywhere.com/](https://help.pythonanywhere.com/)

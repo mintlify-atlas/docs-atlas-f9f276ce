@@ -1,0 +1,252 @@
+---
+title: "Features"
+description: "Comprehensive overview of all OSINT tools and capabilities in OSINT Hub"
+---
+
+OSINT Hub provides a comprehensive suite of open source intelligence tools, all accessible through a unified web interface. Each tool is designed for specific investigation tasks while sharing common security and usability features.
+
+## OSINT Tools
+
+OSINT Hub integrates six powerful intelligence gathering tools:
+
+<CardGroup cols={2}>
+  <Card title="Email Search" icon="envelope" href="/tools/email-search">
+    Verify email presence across 120+ platforms using Holehe integration
+  </Card>
+  <Card title="EXIF Metadata" icon="camera" href="/tools/exif-metadata">
+    Extract metadata from images, videos, and PDFs with GPS coordinate mapping
+  </Card>
+  <Card title="Hash Tool" icon="fingerprint" href="/tools/hash-tool">
+    Generate and verify cryptographic hashes for file integrity verification
+  </Card>
+  <Card title="IP Lookup" icon="globe" href="/tools/ip-lookup">
+    Geolocate IP addresses and retrieve network information
+  </Card>
+  <Card title="Username Search" icon="magnifying-glass" href="/tools/username-search">
+    Search usernames across 300+ websites and platforms using Sherlock
+  </Card>
+  <Card title="Phone Search" icon="phone" href="/tools/phone-search">
+    Look up international phone numbers across multiple platforms
+  </Card>
+</CardGroup>
+
+## Email Search
+
+**Endpoint:** `/email/`  
+**Integration:** [Holehe](https://github.com/megadose/holehe)
+
+The Email Search tool verifies whether an email address is registered on over 120 online platforms and services. This is useful for:
+
+- **Account Discovery:** Find all platforms where a target email is registered
+- **Digital Footprint Analysis:** Map online presence of email addresses
+- **Breach Correlation:** Identify potential data breach exposure
+
+**Key Features:**
+- Email format validation with regex pattern matching
+- 60-second timeout protection
+- Session-based result storage
+- Platform-by-platform result breakdown
+
+**Supported Platforms Include:** GitHub, Twitter, Instagram, Facebook, LinkedIn, Spotify, Adobe, Netflix, and 100+ more.
+
+## EXIF Metadata Extractor
+
+**Endpoint:** `/exiftool/`  
+**Integration:** [ExifTool](https://exiftool.org/)
+
+Extract comprehensive metadata from images, videos, and PDF documents. The tool automatically processes GPS coordinates and provides direct map links.
+
+**Supported File Types:**
+- **Images:** JPEG, PNG, GIF, TIFF
+- **Videos:** MP4, MOV, AVI
+- **Documents:** PDF
+
+**Key Features:**
+- GPS coordinate extraction (latitude/longitude from DMS format)
+- Drone telemetry support (DJI Enterprise drones with LRF targets)
+- Altitude data extraction
+- OpenStreetMap integration for coordinate visualization
+- Metadata cleanup for privacy protection
+- 50MB maximum file size
+- 30-second processing timeout
+
+**Extracted Metadata Includes:** Camera make/model, software used, timestamps, GPS location, altitude, color space, resolution, and more.
+
+## Hash Tool
+
+**Endpoint:** `/hash/`  
+**Implementation:** Python hashlib
+
+Generate and verify cryptographic hashes for both text strings and files. Essential for file integrity verification and forensic analysis.
+
+**Supported Algorithms:**
+- MD5 (128-bit) - Legacy support only
+- SHA-1 (160-bit) - Legacy support only
+- SHA-224 (224-bit)
+- SHA-256 (256-bit) - Recommended
+- SHA-384 (384-bit)
+- SHA-512 (512-bit) - Highest security
+
+**Modes:**
+1. **Generate Mode:** Create hashes from text input or uploaded files
+2. **Verify Mode:** Compare generated hash against expected value
+
+**Key Features:**
+- Chunk-based file processing for memory efficiency
+- Hash normalization (case-insensitive, whitespace-trimmed)
+- Security warnings for deprecated algorithms (MD5, SHA-1)
+- Support for large file hashing
+
+<Warning>
+  MD5 and SHA-1 are cryptographically broken and should only be used for compatibility with legacy systems. Use SHA-256 or SHA-512 for security-critical applications.
+</Warning>
+
+## IP Lookup
+
+**Endpoint:** `/ip/`  
+**Integration:** [ip.guide API](https://ip.guide/)
+
+Retrieve geolocation, network information, and autonomous system details for IPv4 and IPv6 addresses.
+
+**Retrieved Information:**
+- **Location Data:** City, country, timezone, latitude/longitude
+- **Network Information:** CIDR block, total hosts in subnet
+- **ASN Details:** Autonomous System Number, organization, RIR, country
+
+**Key Features:**
+- IPv4 and IPv6 support
+- Django IP address validation
+- Configurable API backend (supports multiple providers)
+- 15-second timeout protection
+- Session-based result caching
+
+**Use Cases:**
+- Threat intelligence and attack source identification
+- Network reconnaissance
+- Access control and geofencing
+- Fraud detection
+
+## Username Search
+
+**Endpoint:** `/user/`  
+**Integration:** [Sherlock Project](https://github.com/sherlock-project/sherlock)
+
+Search for a username across 300+ websites, social networks, and online platforms simultaneously.
+
+**Key Features:**
+- 300+ platform coverage
+- Username validation (2-64 characters, alphanumeric + `.`, `_`, `-`)
+- Result export to CSV format
+- Dual storage (JSON + TXT) with timestamps
+- Directory traversal prevention (sanitized filenames)
+- Auto-cleanup every 3 searches
+- 15-second per-site timeout, 300-second total timeout
+
+**Result Details:**
+- Platform name
+- Profile URL (if found)
+- Existence status
+- Error information (if applicable)
+
+**Common Platforms:** GitHub, Instagram, Twitter, Facebook, Reddit, LinkedIn, Medium, YouTube, Twitch, and 290+ more.
+
+## Phone Search
+
+**Endpoint:** `/phone/`  
+**Integration:** [Ignorant](https://github.com/megadose/ignorant)
+
+Look up phone number registration across multiple online platforms. Supports international phone numbers with country code validation.
+
+**Input Format:**
+```
+COUNTRY_CODE PHONE_NUMBER
+```
+
+Example: `1 5551234567` (USA), `33 612345678` (France), `44 7700900123` (UK)
+
+**Key Features:**
+- Async processing with httpx (10 concurrent connections)
+- Celery task support for background processing
+- Country code validation and formatting
+- 30-second per-platform timeout
+- Dynamic platform module loading
+
+**Supported Country Codes:** 1 (USA/Canada), 33 (France), 44 (UK), 7 (Russia), 52 (Mexico), and many more.
+
+## Platform Features
+
+Beyond the individual tools, OSINT Hub provides a robust platform with:
+
+### Modular Architecture
+
+Each OSINT tool is implemented as a separate Django app, making it easy to:
+- Add new tools without affecting existing ones
+- Maintain and update tools independently
+- Enable/disable specific tools as needed
+
+### Security Features
+
+<CardGroup cols={2}>
+  <Card title="Content Security Policy" icon="shield-halved">
+    Strict CSP headers prevent XSS and injection attacks
+  </Card>
+  <Card title="HSTS Enforcement" icon="lock">
+    HTTP Strict Transport Security for production deployments
+  </Card>
+  <Card title="CSRF Protection" icon="shield-check">
+    Token-based CSRF protection on all forms
+  </Card>
+  <Card title="Input Sanitization" icon="filter">
+    Comprehensive validation and sanitization of all user inputs
+  </Card>
+</CardGroup>
+
+### Async Task Processing
+
+Celery integration allows long-running searches to execute in the background:
+- **Phone Search:** Runs asynchronously to avoid blocking
+- **Username Search:** Handles 300+ site checks efficiently
+- **Configurable Timeouts:** 30-minute task limit, 1-hour result expiration
+
+### Responsive Interface
+
+Bootstrap 5 provides:
+- Mobile-responsive design
+- Dark/light mode support
+- Accessible components (ARIA labels, semantic HTML)
+- Modern card-based layouts
+
+### Data Export
+
+Results can be exported in multiple formats:
+- **CSV Export:** Username search results
+- **Session Storage:** All search results persist across page loads
+- **File Downloads:** Hash verification and metadata reports
+
+## Performance Characteristics
+
+| Tool | Timeout | Concurrent Operations | Result Storage |
+|------|---------|----------------------|----------------|
+| Email Search | 60s | Sequential | Session |
+| EXIF Metadata | 30s | Single file | Temporary + Session |
+| Hash Tool | None | Chunk-based | Session |
+| IP Lookup | 15s | Single request | Session |
+| Username Search | 300s total, 15s/site | Parallel | Session + Disk (JSON/TXT) |
+| Phone Search | 30s/platform | 10 concurrent | Session + Celery |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Get Started" icon="rocket" href="/quickstart">
+    Install OSINT Hub and run your first search
+  </Card>
+  <Card title="Tool Documentation" icon="book" href="/tools/email-search">
+    Detailed documentation for each OSINT tool
+  </Card>
+  <Card title="Deployment" icon="server" href="/deployment/installation">
+    Deploy OSINT Hub to production
+  </Card>
+  <Card title="Security Guide" icon="shield" href="/security/overview">
+    Learn about security features and best practices
+  </Card>
+</CardGroup>

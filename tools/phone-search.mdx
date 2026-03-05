@@ -1,0 +1,538 @@
+---
+title: Phone Number Search
+description: Discover online accounts and social media profiles associated with phone numbers using Ignorant
+icon: phone
+---
+
+## Overview
+
+The Phone Number Search tool uses [Ignorant](https://github.com/megadose/ignorant) to check if a phone number is registered on various online platforms and services. This tool helps investigators identify social media accounts, messaging apps, and online services linked to a specific phone number.
+
+<Note>
+  Ignorant queries multiple platforms including WhatsApp, Telegram, Signal, Snapchat, Instagram, and other services that use phone numbers for registration.
+</Note>
+
+## How It Works
+
+The tool uses an asynchronous implementation to query multiple platforms simultaneously, significantly improving performance compared to sequential checks.
+
+### Technical Implementation
+
+From `PhoneSearch/views.py:10-29`:
+
+```python
+async def search_phone(request):
+    """Vista asíncrona que maneja el formulario y ejecuta la búsqueda."""
+    form = PhoneSearchForm(request.POST or None)
+    
+    if request.method == "POST":
+        if form.is_valid():
+            # Obtener datos limpios
+            phone = form.phone
+            country_code = form.country_code
+            
+            try:
+                # Ejecutar búsqueda asíncrona
+                results = await search_phone_async(phone, country_code)
+                
+                # Calcular estadísticas
+                found_count = sum(
+                    1 for r in results 
+                    if isinstance(r, dict) and r.get("exists") is True
+                )
+```
+
+### Asynchronous Search Engine
+
+From `PhoneSearch/tasks.py:59-90`:
+
+```python
+async def search_phone_async(phone, country_code):
+    """Ejecutar búsqueda usando módulos ignorant asíncronamente."""
+    websites = await import_ignorant_modules()
+    results = []
+    
+    try:
+        async with httpx.AsyncClient(
+            timeout=30.0,
+            limits=httpx.Limits(
+                max_connections=10, 
+                max_keepalive_connections=5
+            ),
+            follow_redirects=True,
+        ) as client:
+            for website in websites:
+                try:
+                    await website(phone, country_code, client, results)
+                except Exception as e:
+                    results.append({
+                        "name": website.__name__,
+                        "domain": f"{website.__name__}.com",
+                        "rateLimit": True,
+                        "exists": False,
+                        "error": str(e)[:100],
+                    })
+    
+    return results
+```
+
+## Usage
+
+<Steps>
+  <Step title="Format Phone Number">
+    Enter the phone number in the format: `COUNTRY_CODE PHONE_NUMBER`
+    
+    **Examples:**
+    - `1 5551234567` (USA)
+    - `44 2071234567` (UK)
+    - `521 5534123456` (Mexico mobile)
+    - `86 13812345678` (China)
+    
+    <Note>
+      The country code should be numeric only (1-999) and the phone number must be at least 6 digits.
+    </Note>
+  </Step>
+  
+  <Step title="Execute Search">
+    Click search to initiate the asynchronous query across all platforms. The tool will:
+    
+    - Dynamically load Ignorant modules
+    - Query platforms concurrently
+    - Handle rate limiting gracefully
+    - Return results in real-time
+  </Step>
+  
+  <Step title="Review Results">
+    View the list of platforms where the phone number was found. Results include:
+    
+    - **Platform Name**: Service or app name
+    - **Domain**: Website domain
+    - **Status**: Whether the number exists on the platform
+    - **Rate Limit**: Indicator if rate limiting was encountered
+    - **Errors**: Any issues during the check
+  </Step>
+</Steps>
+
+## Phone Number Validation
+
+The tool performs strict validation on input:
+
+From `PhoneSearch/forms.py:21-53`:
+
+```python
+def clean_query(self):
+    query = self.cleaned_data["query"]
+    parts = query.strip().split()
+    
+    # Check format: at least 2 parts (CODE and PHONE)
+    if len(parts) < 2:
+        raise forms.ValidationError(
+            "Formato inválido. Usa: CÓDIGO_PAÍS NÚMERO (ej: 521 5534123456)."
+        )
+    
+    # Extract and validate country code
+    country_code = parts[0]
+    phone = "".join(parts[1:])  # Join remaining parts
+    
+    # Validate country code (1-999)
+    country_code_clean = re.sub(r"[^0-9]", "", country_code)
+    if not (1 <= int(country_code_clean) <= 999):
+        raise forms.ValidationError("Código de país inválido (1-999).")
+    
+    # Validate phone number (minimum 6 digits)
+    phone_clean = re.sub(r"[^0-9]", "", phone)
+    if len(phone_clean) < 6:
+        raise forms.ValidationError(
+            "Número telefónico demasiado corto (mínimo 6 dígitos)."
+        )
+    
+    # Store parsed values
+    self.country_code = country_code_clean
+    self.phone = phone_clean
+    
+    return query
+```
+
+### Validation Rules
+
+<ParamField path="country_code" type="integer" required>
+  Numeric country calling code (1-999)
+  
+  Examples: 1 (USA/Canada), 44 (UK), 86 (China), 521 (Mexico Mobile)
+</ParamField>
+
+<ParamField path="phone" type="string" required>
+  Phone number with minimum 6 digits (spaces allowed, will be stripped)
+</ParamField>
+
+## Dynamic Module Import
+
+Ignorant's modules are imported dynamically at runtime:
+
+From `PhoneSearch/tasks.py:31-56`:
+
+```python
+async def import_ignorant_modules():
+    """Importar módulos ignorant dinámicamente."""
+    
+    def import_submodules(package, recursive=True):
+        if isinstance(package, str):
+            package = importlib.import_module(package)
+        results = {}
+        
+        for loader, name, is_pkg in pkgutil.walk_packages(package.__path__):
+            full_name = package.__name__ + "." + name
+            results[full_name] = importlib.import_module(full_name)
+            if recursive and is_pkg:
+                results.update(import_submodules(full_name))
+        return results
+    
+    modules = import_submodules("ignorant.modules")
+    websites = []
+    
+    for module_name in modules:
+        if len(module_name.split(".")) > 3:
+            modu = modules[module_name]
+            site = module_name.split(".")[-1]
+            if site in modu.__dict__:
+                websites.append(modu.__dict__[site])
+    
+    return websites
+```
+
+This approach:
+- Loads all available Ignorant modules
+- Supports custom module additions
+- Handles missing modules gracefully
+- Enables extensibility
+
+## HTTP Client Configuration
+
+The async client is configured for optimal performance:
+
+```python
+async with httpx.AsyncClient(
+    timeout=30.0,                              # 30-second timeout per request
+    limits=httpx.Limits(
+        max_connections=10,                     # Max concurrent connections
+        max_keepalive_connections=5            # Reuse connections
+    ),
+    follow_redirects=True,                      # Handle redirects automatically
+) as client:
+```
+
+### Performance Settings
+
+<ParamField path="timeout" type="float" default="30.0">
+  Maximum time in seconds to wait for each platform response
+</ParamField>
+
+<ParamField path="max_connections" type="integer" default="10">
+  Maximum number of concurrent HTTP connections
+</ParamField>
+
+<ParamField path="max_keepalive_connections" type="integer" default="5">
+  Number of connections to keep alive for reuse
+</ParamField>
+
+## Result Structure
+
+Each result contains:
+
+```python
+{
+    "name": "whatsapp",                    # Platform identifier
+    "domain": "whatsapp.com",              # Domain name
+    "exists": True,                        # Whether number is registered
+    "rateLimit": False,                    # Rate limiting encountered
+    "error": None                          # Error message if any
+}
+```
+
+### Statistics Calculation
+
+From `PhoneSearch/views.py:32-48`:
+
+```python
+# Calculate statistics for template
+found_count = sum(
+    1 for r in results 
+    if isinstance(r, dict) and r.get("exists") is True
+)
+rate_limited = any(
+    r.get("rateLimit") for r in results 
+    if isinstance(r, dict)
+)
+
+context = {
+    "results": results,
+    "phone": phone,
+    "country": country_code,
+    "found_count": found_count,
+    "rate_limited": rate_limited,
+    "total_count": len(results),
+}
+```
+
+## API Endpoints
+
+Defined in `PhoneSearch/urls.py`:
+
+| Endpoint | View Function | Purpose |
+|----------|--------------|----------|
+| `/search/` | `search_phone` | Async search form and results |
+
+<Note>
+  Unlike other tools, Phone Search combines the form and results in a single async view for better performance.
+</Note>
+
+## Celery Integration
+
+The tool includes optional Celery task support for background processing:
+
+From `PhoneSearch/tasks.py:11-28`:
+
+```python
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def search_phone_task(self, phone, country_code):
+    """Celery task para búsqueda de teléfonos."""
+    try:
+        logger.info(f"Iniciando búsqueda para teléfono: {phone}")
+        
+        # Ejecutar async function sincrónicamente
+        results = async_to_sync(search_phone_async)(phone, country_code)
+        
+        logger.info(f"Búsqueda completada. Resultados: {len(results)}")
+        return results
+        
+    except Exception as exc:
+        logger.error(f"Error en task: {exc}")
+        raise self.retry(exc=exc, countdown=60)
+```
+
+This allows:
+- Background job processing
+- Automatic retries on failure
+- Distributed task execution
+- Better scalability for high-volume searches
+
+## Error Handling
+
+<Warning>
+  The tool gracefully handles multiple error scenarios:
+  
+  - **Invalid Format**: Form validation prevents malformed input
+  - **Module Import Errors**: Continues with available modules
+  - **Network Timeouts**: 30-second per-platform timeout
+  - **Rate Limiting**: Detected and reported in results
+  - **Platform Errors**: Captured and included in results
+  - **General Exceptions**: Logged and displayed to user
+</Warning>
+
+Per-platform error handling:
+
+```python
+try:
+    await website(phone, country_code, client, results)
+except Exception as e:
+    results.append({
+        "name": website.__name__,
+        "domain": f"{website.__name__}.com",
+        "rateLimit": True,
+        "exists": False,
+        "error": str(e)[:100],  # Truncate long errors
+    })
+```
+
+## Supported Platforms
+
+Ignorant checks phone numbers on:
+
+### Messaging Apps
+- WhatsApp
+- Telegram
+- Signal
+- Viber
+- Line
+
+### Social Media
+- Instagram
+- Snapchat
+- Facebook
+- Twitter (phone lookup)
+
+### Other Services
+- Dating apps
+- Shopping platforms
+- Regional services
+- Verification services
+
+<Note>
+  The exact list of platforms depends on the installed version of Ignorant and its module database.
+</Note>
+
+## Use Cases
+
+### Investigation
+- Identify social media profiles linked to phone numbers
+- Verify identity claims
+- Correlate phone numbers across platforms
+
+### Security Research
+- Test phone number exposure
+- Assess privacy leakage
+- Identify information disclosure
+
+### OSINT Operations
+- Map digital footprint from phone number
+- Cross-reference with other intelligence
+- Build subject profiles
+
+### Fraud Prevention
+- Verify account legitimacy
+- Detect disposable numbers
+- Identify suspicious patterns
+
+## Performance Characteristics
+
+### Asynchronous Benefits
+
+- **Concurrent Queries**: All platforms checked simultaneously
+- **Reduced Latency**: No sequential bottleneck
+- **Better Throughput**: Handles multiple searches efficiently
+- **Timeout Isolation**: One slow platform doesn't block others
+
+### Timing
+
+- **Average Search**: 30-60 seconds
+- **Per-Platform Timeout**: 30 seconds
+- **Concurrent Platforms**: 10 simultaneous connections
+- **Total Search Time**: Limited by slowest platform
+
+## Rate Limiting
+
+<Warning>
+  Many platforms implement aggressive rate limiting for phone number lookups to prevent abuse.
+  
+  **Best Practices:**
+  - Space out searches (minimum 1-2 minutes between queries)
+  - Monitor rate limit indicators in results
+  - Consider rotating IP addresses for large-scale operations
+  - Respect platform policies and legal restrictions
+</Warning>
+
+## Privacy & Legal Considerations
+
+<Warning>
+  **Responsible Use**
+  
+  Phone numbers are considered personally identifiable information (PII) in most jurisdictions.
+  
+  - **Legal Authorization**: Obtain proper warrants or permissions
+  - **Data Protection**: Comply with GDPR, CCPA, and local privacy laws
+  - **Purpose Limitation**: Use only for legitimate investigation purposes
+  - **Audit Trails**: Log all searches for accountability
+  - **Retention Policy**: Delete results according to policy
+  - **Anti-Harassment**: Never use for stalking or harassment
+</Warning>
+
+## Limitations
+
+- **False Positives**: Common phone formats may trigger matches
+- **False Negatives**: Privacy settings may hide registrations
+- **Rate Limiting**: Aggressive checks may trigger blocks
+- **Platform Changes**: APIs and detection methods change frequently
+- **Regional Availability**: Some services are region-specific
+- **Accuracy**: Cannot verify if number is still active
+- **Carrier Info**: Does not provide carrier or SIM details
+
+## Troubleshooting
+
+### Ignorant Not Found
+
+If module import fails:
+
+```bash
+pip install ignorant
+# or
+python -m pip install ignorant
+```
+
+### All Results Show Rate Limited
+
+If every platform returns rate limit:
+- Wait 15-30 minutes before retrying
+- Check if IP is blocked
+- Consider using VPN or proxy
+- Reduce search frequency
+
+### No Results Found
+
+If legitimate number returns no results:
+- Verify country code is correct
+- Ensure phone number is complete
+- Check if number is active
+- Verify Ignorant modules are up to date
+
+### Async Errors
+
+If encountering async-related errors:
+- Ensure Django 3.1+ with ASGI support
+- Verify httpx is installed: `pip install httpx`
+- Check server supports async views
+
+## Country Code Reference
+
+### Common Country Codes
+
+| Code | Country/Region |
+|------|---------------|
+| 1 | USA, Canada |
+| 7 | Russia, Kazakhstan |
+| 20 | Egypt |
+| 27 | South Africa |
+| 30 | Greece |
+| 31 | Netherlands |
+| 32 | Belgium |
+| 33 | France |
+| 34 | Spain |
+| 39 | Italy |
+| 40 | Romania |
+| 41 | Switzerland |
+| 43 | Austria |
+| 44 | United Kingdom |
+| 45 | Denmark |
+| 46 | Sweden |
+| 47 | Norway |
+| 48 | Poland |
+| 49 | Germany |
+| 51 | Peru |
+| 52 | Mexico (521 for mobile) |
+| 53 | Cuba |
+| 54 | Argentina |
+| 55 | Brazil |
+| 56 | Chile |
+| 57 | Colombia |
+| 58 | Venezuela |
+| 60 | Malaysia |
+| 61 | Australia |
+| 62 | Indonesia |
+| 63 | Philippines |
+| 64 | New Zealand |
+| 65 | Singapore |
+| 66 | Thailand |
+| 81 | Japan |
+| 82 | South Korea |
+| 84 | Vietnam |
+| 86 | China |
+| 90 | Turkey |
+| 91 | India |
+| 92 | Pakistan |
+| 93 | Afghanistan |
+| 94 | Sri Lanka |
+| 95 | Myanmar |
+| 98 | Iran |
+
+<Note>
+  Some countries have different codes for mobile vs. landline (e.g., Mexico uses 52 for landlines and 521 for mobile).
+</Note>

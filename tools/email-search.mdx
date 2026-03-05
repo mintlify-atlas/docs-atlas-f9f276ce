@@ -1,0 +1,159 @@
+---
+title: Email Search
+description: Discover which online platforms are associated with an email address using Holehe
+icon: envelope
+---
+
+## Overview
+
+The Email Search tool uses [Holehe](https://github.com/megadose/holehe) to check if an email address is registered on various online platforms and services. This tool helps investigators determine where a target email has been used to create accounts.
+
+<Note>
+  Holehe queries over 120+ platforms including social networks, forums, dating sites, and other online services to check for email registration.
+</Note>
+
+## How It Works
+
+The tool executes Holehe via subprocess and parses the output to identify platforms where the email address is registered.
+
+### Technical Implementation
+
+From `email_holehe/views.py:35-40`:
+
+```python
+result = subprocess.run(
+    [holehe_path, email, "--only-used"],
+    capture_output=True,
+    text=True,
+    timeout=60,  # Timeout de 60 segundos
+)
+```
+
+### Result Parsing
+
+The tool parses Holehe's output looking for lines with `[+]` markers that indicate a successful match:
+
+```python
+for line in lines:
+    if "[+]" in line:
+        match = re.search(r"\[\+\]\s+Email used on\s+(.+)", line, re.IGNORECASE)
+        if match:
+            service_name = match.group(1).strip()
+            results.append({
+                "platform": service_name,
+                "details": "Email encontrado en esta plataforma",
+                "status": "found",
+            })
+```
+
+## Usage
+
+<Steps>
+  <Step title="Enter Email Address">
+    Navigate to the Email Search page and input the target email address in the search form.
+    
+    The tool validates the email format using regex: `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+  </Step>
+  
+  <Step title="Execute Search">
+    Click the search button to initiate the Holehe scan. The search has a 60-second timeout.
+    
+    The tool will:
+    - Execute Holehe with the `--only-used` flag (shows only platforms where the email exists)
+    - Parse the results in real-time
+    - Store results in the session
+  </Step>
+  
+  <Step title="Review Results">
+    View the list of platforms where the email address was found. Each result includes:
+    
+    - **Platform Name**: The service or website name
+    - **Status**: Whether the email was found
+    - **Details**: Additional information about the match
+  </Step>
+</Steps>
+
+## API Endpoints
+
+Defined in `email_holehe/urls.py`:
+
+| Endpoint | View Function | Purpose |
+|----------|--------------|----------|
+| `/search/` | `search_email` | Display search form and process submissions |
+| `/results/` | `search_results` | Display search results from session |
+
+## Results Format
+
+Results are stored in the session and formatted as:
+
+```python
+{
+    "platform": "ServiceName",
+    "details": "Email encontrado en esta plataforma",
+    "status": "found"
+}
+```
+
+## Validation
+
+<ParamField path="email" type="string" required>
+  Must be a valid email address format. The tool performs regex validation before executing the search.
+</ParamField>
+
+## Error Handling
+
+<Warning>
+  The tool handles several error conditions:
+  
+  - **Empty Input**: Shows error message requesting email input
+  - **Invalid Format**: Validates email format with regex
+  - **Timeout**: 60-second timeout with error message
+  - **Holehe Not Installed**: Checks for Holehe executable and shows installation error
+  - **General Exceptions**: Catches and displays any execution errors
+</Warning>
+
+## Technical Details
+
+### Session Storage
+
+From `email_holehe/views.py:42-45`:
+
+```python
+request.session["searched_email"] = email
+request.session["holehe_output"] = result.stdout
+request.session["holehe_stderr"] = result.stderr
+```
+
+### Holehe Path Resolution
+
+The tool attempts to locate Holehe in multiple locations:
+
+1. Virtual environment bin directory
+2. System-wide installation
+3. Fallback to global command
+
+```python
+venv_bin = os.path.dirname(sys.executable)
+holehe_path = os.path.join(venv_bin, "holehe")
+
+if not os.path.exists(holehe_path):
+    holehe_path = "holehe"
+```
+
+## Limitations
+
+<Warning>
+  - Holehe must be installed on the system
+  - Search timeout is limited to 60 seconds
+  - Results depend on Holehe's database of supported platforms
+  - Some platforms may implement rate limiting or bot detection
+  - The `--only-used` flag only shows positive matches (platforms where email exists)
+</Warning>
+
+## Use Cases
+
+- **Account Discovery**: Find all accounts associated with an email address
+- **Digital Footprint Analysis**: Map an individual's online presence
+- **Investigation Research**: Identify platforms for further investigation
+- **Breach Correlation**: Cross-reference with known data breaches
+- **Social Media Profiling**: Discover social network accounts

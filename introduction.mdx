@@ -1,0 +1,167 @@
+---
+title: Introduction
+description: 'OSINT Hub - A unified web platform for OSINT (Open Source Intelligence) tools'
+---
+
+## What is OSINT Hub?
+
+OSINT Hub is a Django-based web application that centralizes multiple Open Source Intelligence (OSINT) tools into a single, unified platform. Built with Python 3.12 and Django 5.2, it eliminates the need to switch between different tools during an investigation by providing a modern, responsive web interface for all your OSINT needs.
+
+<Note>
+  OSINT Hub is designed for security researchers, investigators, and professionals who need to gather information from public sources efficiently and legally.
+</Note>
+
+## Why Use OSINT Hub?
+
+<CardGroup cols={2}>
+  <Card title="Centralized Platform" icon="layer-group">
+    Access 6 powerful OSINT tools through a single web interface - no need to manage multiple CLI tools or browser tabs
+  </Card>
+  <Card title="Modern Web UI" icon="browser">
+    Built with Bootstrap 5, featuring responsive design and support for light/dark modes
+  </Card>
+  <Card title="Security First" icon="shield-check">
+    Includes CSRF protection, CSP headers, HSTS, XSS protection, and input sanitization
+  </Card>
+  <Card title="Easy Deployment" icon="rocket">
+    Deploy anywhere - local development, production with Gunicorn, or cloud platforms like PythonAnywhere
+  </Card>
+</CardGroup>
+
+## Core Capabilities
+
+OSINT Hub provides six integrated tools for different investigation scenarios:
+
+### Email Intelligence
+Verify email presence across 300+ platforms using **Holehe 1.61**. Quickly determine where an email address is registered without manual checking.
+
+### Image Metadata Analysis
+Extract EXIF, XMP, and IPTC metadata from images, videos, and PDFs using **ExifTool**. Automatically extracts GPS coordinates and generates OpenStreetMap links for location analysis.
+
+### Cryptographic Hashing
+Generate and verify cryptographic hashes (MD5, SHA1, SHA256, SHA512, SHA224, SHA384) for files and text to ensure data integrity.
+
+### IP Geolocation
+Lookup geolocation, ASN information, network blocks, and organization details for any IPv4 or IPv6 address.
+
+### Username Discovery
+Search for usernames across 300+ social networks and websites using **Sherlock 0.16**. Export results to CSV for further analysis.
+
+### Phone Number Intelligence
+Analyze international phone numbers using **phonenumbers 9.0** library with asynchronous processing for fast results.
+
+## Technology Stack
+
+<CodeGroup>
+
+```python Backend
+# Core Framework
+Django 5.2
+Python 3.12
+
+# Async Processing
+Celery 5.6
+Redis (message broker)
+
+# Production Server
+Gunicorn 23.0
+WhiteNoise 6.8.2 (static files)
+```
+
+```python OSINT Tools
+# Integrated Libraries
+holehe==1.61          # Email search
+sherlock-project==0.16.0  # Username search
+PyExifTool==0.5.6     # Metadata extraction
+phonenumbers==9.0.18  # Phone analysis
+```
+
+```javascript Frontend
+// UI Framework
+Bootstrap 5
+Bootstrap Icons
+Vanilla JavaScript
+
+// Database
+SQLite 3 (development)
+PostgreSQL (production)
+```
+
+</CodeGroup>
+
+## Key Features
+
+- **Modular Architecture**: Each tool is a separate Django app, making it easy to add new tools or disable unused ones
+- **Session Management**: Results are stored in Django sessions for easy review and re-export
+- **Input Validation**: All user inputs are validated and sanitized to prevent injection attacks
+- **Timeout Protection**: All external processes have timeouts (Holehe: 60s, Sherlock: 300s, IP: 15s)
+- **File Size Limits**: Upload limits prevent resource exhaustion (ExifTool: 50MB max)
+- **SEO Ready**: Includes `robots.txt`, `sitemap.xml`, and `security.txt` for production deployments
+
+## Security Features
+
+OSINT Hub implements multiple security layers:
+
+<Steps>
+  <Step title="CSRF Protection">
+    Django CSRF protection enabled on all forms to prevent cross-site request forgery
+  </Step>
+  <Step title="Content Security Policy">
+    Strict CSP headers configured via django-csp to prevent XSS attacks
+  </Step>
+  <Step title="HTTP Security Headers">
+    HSTS, X-Frame-Options, and XSS protection headers enabled in production
+  </Step>
+  <Step title="Input Sanitization">
+    Path traversal prevention, email validation, IP validation, and filename sanitization
+  </Step>
+  <Step title="Environment Variables">
+    Secrets managed via python-decouple for secure credential storage
+  </Step>
+</Steps>
+
+## Use Cases
+
+<Accordion title="Digital Investigations">
+  Track online presence, verify account ownership, and investigate digital footprints across multiple platforms
+</Accordion>
+
+<Accordion title="Security Research">
+  Analyze metadata from suspicious files, verify file integrity with hashes, and investigate IP addresses
+</Accordion>
+
+<Accordion title="OSINT Training">
+  Educational platform for learning OSINT techniques with real tools in a controlled environment
+</Accordion>
+
+<Accordion title="Data Verification">
+  Verify email addresses before outreach campaigns, validate phone numbers, and confirm user identities
+</Accordion>
+
+## Project Structure
+
+```
+osint_hub/
+├── osint_hub/              # Django project configuration
+│   ├── settings.py         # Main settings
+│   ├── urls.py            # URL routing
+│   ├── celery.py          # Celery configuration
+│   └── wsgi.py            # WSGI application
+├── email_holehe/          # Email search app
+├── ExifTool/              # EXIF metadata app
+├── HashTool/              # Hash generation app
+├── IPLookup/              # IP geolocation app
+├── PhoneSearch/           # Phone number app
+├── UsernameSearch/        # Username search app
+├── templates/             # Global templates
+├── static/                # Static files
+└── requirements.txt       # Python dependencies
+```
+
+## Getting Started
+
+Ready to start using OSINT Hub? Check out the [Quickstart Guide](/quickstart) to get up and running in under 5 minutes, or explore the [Features](/features) documentation to learn about each tool in detail.
+
+<Card title="Next: Quickstart" icon="play" href="/quickstart">
+  Install OSINT Hub and run your first search
+</Card>

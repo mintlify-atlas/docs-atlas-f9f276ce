@@ -1,0 +1,254 @@
+---
+title: Security Overview
+description: Security features and protections built into OSINT Hub
+---
+
+OSINT Hub implements multiple layers of security to protect users and their investigation data. This page provides an overview of the security features built into the platform.
+
+## Core Security Features
+
+### Content Security Policy (CSP)
+
+OSINT Hub implements a strict Content Security Policy to prevent cross-site scripting (XSS) attacks and unauthorized content injection.
+
+**Configuration** (osint_hub/settings.py:186-234):
+
+```python
+# Default policy: Block everything not explicitly allowed
+CSP_DEFAULT_SRC = ("'self'",)
+
+# Scripts: Allow local and trusted CDNs
+CSP_SCRIPT_SRC = (
+    "'self'",
+    "https://cdn.jsdelivr.net",  # Bootstrap 5 JS
+    "https://code.jquery.com",
+)
+
+# Styles: Allow local and trusted CDNs
+CSP_STYLE_SRC = (
+    "'self'",
+    "https://cdn.jsdelivr.net",  # Bootstrap 5 CSS
+    "https://fonts.googleapis.com",
+)
+
+# Images: Allow local, data URIs, and OpenStreetMap tiles
+CSP_IMG_SRC = (
+    "'self'",
+    "data:",
+    "https://*.openstreetmap.org",
+    "https://*.tile.openstreetmap.org",
+)
+
+# Nonce for inline scripts
+CSP_INCLUDE_NONCE_IN = ["script-src"]
+```
+
+The CSP middleware (`csp.middleware.CSPMiddleware`) is active in the middleware stack (line 44) and enforces these policies on every response.
+
+<Note>
+CSP_REPORT_ONLY is set to `False` by default, meaning violations are blocked. Monitor your browser's console during development to identify legitimate resources that may need to be whitelisted.
+</Note>
+
+### HTTP Strict Transport Security (HSTS)
+
+In production mode (when `DEBUG=False`), OSINT Hub enforces HTTPS connections through HSTS headers:
+
+```python
+if not DEBUG:
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+```
+
+This configuration (osint_hub/settings.py:148-150):
+- Forces browsers to use HTTPS for 1 year
+- Applies to all subdomains
+- Qualifies for browser HSTS preload lists
+
+<Warning>
+HSTS settings are only active in production (`DEBUG=False`). Ensure your production environment has valid SSL/TLS certificates configured before deploying.
+</Warning>
+
+### Cross-Site Request Forgery (CSRF) Protection
+
+Django's CSRF middleware (`django.middleware.csrf.CsrfViewMiddleware`) is enabled (line 43) to prevent unauthorized state-changing requests.
+
+**Key configurations:**
+
+```python
+# In production, secure CSRF cookies over HTTPS
+if not DEBUG:
+    CSRF_COOKIE_SECURE = False  # Set to True when SSL is available
+
+# Configure trusted origins for cross-origin requests
+CSRF_TRUSTED_ORIGINS = [url.strip() for url in csrf_trusted_origins_str.split(",")]
+```
+
+<Note>
+Set the `CSRF_TRUSTED_ORIGINS` environment variable to a comma-separated list of trusted domains when deploying (e.g., `"https://osinthub.example.com,https://www.osinthub.example.com"`).
+</Note>
+
+### Clickjacking Protection
+
+X-Frame-Options protection prevents the application from being embedded in frames:
+
+```python
+if not DEBUG:
+    X_FRAME_OPTIONS = "DENY"
+```
+
+The `XFrameOptionsMiddleware` (line 47) sets the `X-Frame-Options: DENY` header on all responses in production.
+
+### Additional Security Headers
+
+In production mode, additional security headers are automatically set:
+
+```python
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+```
+
+- **X-XSS-Protection**: Enables browser XSS filtering
+- **X-Content-Type-Options**: Prevents MIME type sniffing
+
+## Input Validation & Sanitization
+
+### Email Validation
+
+Email inputs are validated using regex patterns before processing (email_holehe/views.py:19-23):
+
+```python
+email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+if not re.match(email_regex, email):
+    messages.error(request, "Por favor, ingresa un correo electrónico válido.")
+    return render(request, "email_holehe/search.html")
+```
+
+### Username Validation
+
+Username inputs are validated through Django forms with strict character whitelisting (UsernameSearch/forms.py:21-34):
+
+```python
+def clean_username(self):
+    username = self.cleaned_data.get("username", "").strip()
+    # Remove leading @ if provided
+    if username.startswith("@"):
+        username = username[1:]
+
+    # Allow only letters, numbers, dots, underscores and hyphens
+    if not re.match(r"^[A-Za-z0-9_.-]{2,64}$", username):
+        raise forms.ValidationError(
+            "Nombre de usuario inválido. Usa letras, números, '_', '-' o '.' (2-64 caracteres)."
+        )
+    return username
+```
+
+### Command Injection Prevention
+
+External tools are invoked using subprocess with explicit argument lists (never shell=True):
+
+```python
+# Safe: Arguments are passed as a list
+result = subprocess.run(
+    [holehe_path, email, "--only-used"],
+    capture_output=True,
+    text=True,
+    timeout=60,
+)
+```
+
+<Warning>
+Never pass user input directly to shell commands. Always use parameterized subprocess calls with argument lists and strict input validation.
+</Warning>
+
+## Timeout Protection
+
+### Task Timeouts
+
+Celery tasks have strict time limits to prevent resource exhaustion:
+
+```python
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+CELERY_RESULT_EXPIRES = 3600  # 1 hour
+```
+
+### Request Timeouts
+
+External tool invocations include timeout protection:
+
+```python
+result = subprocess.run(
+    [holehe_path, email, "--only-used"],
+    timeout=60,  # 60 second timeout
+)
+```
+
+## Password Security
+
+Django's built-in password validators ensure strong password policies (osint_hub/settings.py:86-99):
+
+```python
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+```
+
+These validators enforce:
+- Password must not be similar to user attributes
+- Minimum length requirements
+- Protection against common passwords
+- Prevention of all-numeric passwords
+
+## Secret Management
+
+### Environment Variables
+
+Sensitive configuration is loaded from environment variables using python-decouple:
+
+```python
+SECRET_KEY = config("SECRET_KEY")
+DEBUG = config("DEBUG", default=True, cast=bool)
+ALLOWED_HOSTS = config(
+    "ALLOWED_HOSTS",
+    default="localhost,127.0.0.1",
+    cast=lambda v: [s.strip() for s in v.split(",")],
+)
+```
+
+<Warning>
+Never commit `.env` files or hardcode secrets in `settings.py`. Always use environment variables for:
+- SECRET_KEY
+- Database credentials
+- API keys
+- CSRF_TRUSTED_ORIGINS
+- ALLOWED_HOSTS
+</Warning>
+
+## Production Security Checklist
+
+Before deploying to production:
+
+1. **Set DEBUG=False** - Disables debug mode and activates security features
+2. **Configure SECRET_KEY** - Use a strong, random secret key
+3. **Set ALLOWED_HOSTS** - List all valid hostnames for your deployment
+4. **Configure CSRF_TRUSTED_ORIGINS** - List all trusted domains
+5. **Enable SSL/TLS** - Configure HTTPS and update `CSRF_COOKIE_SECURE` to True
+6. **Review CSP policies** - Ensure all legitimate resources are whitelisted
+7. **Secure Redis** - Configure authentication for Celery's Redis broker
+8. **Database security** - Use strong credentials and restrict network access
+
+## Security Monitoring
+
+Monitor your application for:
+- CSP violation reports in browser console
+- Failed authentication attempts
+- Unusual task execution patterns
+- Timeout errors that may indicate DoS attempts
+
+<Note>
+Consider implementing centralized logging and monitoring tools to track security events across your deployment.
+</Note>

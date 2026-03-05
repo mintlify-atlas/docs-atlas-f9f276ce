@@ -1,0 +1,326 @@
+---
+title: Contributing to OSINT Hub
+description: Learn how to contribute to OSINT Hub and help make it better
+icon: code-pull-request
+---
+
+<Note>
+  OSINT Hub welcomes contributions from the community. Whether you're fixing bugs, adding new features, or improving documentation, your contributions are valued.
+</Note>
+
+## Getting Started
+
+Before you start contributing, make sure you have:
+
+- Python 3.12+
+- Git installed on your system
+- Familiarity with Django framework
+- Understanding of OSINT tools and methodologies
+
+## Contribution Workflow
+
+<Steps>
+  <Step title="Fork the Repository">
+    Start by forking the OSINT Hub repository on GitHub:
+    
+    ```bash
+    git clone https://github.com/Nakajito/osint_hub.git
+    cd osint_hub
+    ```
+  </Step>
+
+  <Step title="Create a Feature Branch">
+    Create a new branch for your feature or bug fix:
+    
+    ```bash
+    git checkout -b feature/nueva-herramienta
+    ```
+    
+    Use descriptive branch names:
+    - `feature/` for new features
+    - `fix/` for bug fixes
+    - `docs/` for documentation updates
+    - `refactor/` for code refactoring
+  </Step>
+
+  <Step title="Set Up Development Environment">
+    Create and activate a virtual environment:
+    
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # Linux/macOS
+    # venv\Scripts\activate   # Windows
+    ```
+    
+    Install dependencies:
+    
+    ```bash
+    pip install -r requirements.txt
+    ```
+    
+    Set up environment variables:
+    
+    ```bash
+    cp .env.example .env
+    # Edit .env with your configuration
+    ```
+    
+    Run migrations:
+    
+    ```bash
+    python manage.py migrate
+    ```
+  </Step>
+
+  <Step title="Make Your Changes">
+    Implement your feature or bug fix following the project's coding standards:
+    
+    - Follow Django best practices
+    - Write clean, readable code
+    - Add comments for complex logic
+    - Ensure proper error handling
+    - Validate user inputs
+  </Step>
+
+  <Step title="Test Your Changes">
+    Before submitting, test your changes thoroughly:
+    
+    ```bash
+    python manage.py runserver
+    ```
+    
+    - Test all functionality manually
+    - Verify that existing features still work
+    - Check for console errors
+    - Test on different browsers if UI changes
+  </Step>
+
+  <Step title="Commit Your Changes">
+    Follow [Conventional Commits](https://www.conventionalcommits.org/) specification:
+    
+    ```bash
+    git commit -m "feat: agrega herramienta de búsqueda DNS"
+    ```
+    
+    **Commit Message Format:**
+    
+    - `feat:` A new feature
+    - `fix:` A bug fix
+    - `docs:` Documentation changes
+    - `style:` Code style changes (formatting, etc.)
+    - `refactor:` Code refactoring
+    - `test:` Adding or updating tests
+    - `chore:` Maintenance tasks
+    
+    **Examples:**
+    ```bash
+    feat: add DNS lookup tool
+    fix: resolve EXIF extraction error for PNG files
+    docs: update installation instructions
+    refactor: optimize email search performance
+    ```
+  </Step>
+
+  <Step title="Push Your Branch">
+    Push your changes to your forked repository:
+    
+    ```bash
+    git push origin feature/nueva-herramienta
+    ```
+  </Step>
+
+  <Step title="Open a Pull Request">
+    Go to the original repository on GitHub and open a Pull Request:
+    
+    - Provide a clear title and description
+    - Explain what changes you made and why
+    - Reference any related issues
+    - Include screenshots for UI changes
+    - List any breaking changes
+  </Step>
+</Steps>
+
+## Code Style Guidelines
+
+<CardGroup cols={2}>
+  <Card title="Python Code" icon="python">
+    - Follow PEP 8 style guide
+    - Use meaningful variable names
+    - Keep functions small and focused
+    - Add docstrings to functions and classes
+  </Card>
+
+  <Card title="Django Patterns" icon="server">
+    - Follow Django project structure
+    - Use class-based views when appropriate
+    - Implement proper form validation
+    - Use Django ORM efficiently
+  </Card>
+
+  <Card title="Frontend Code" icon="code">
+    - Use Bootstrap 5 components
+    - Keep JavaScript modular
+    - Ensure responsive design
+    - Follow accessibility standards
+  </Card>
+
+  <Card title="Security" icon="shield">
+    - Sanitize all user inputs
+    - Implement CSRF protection
+    - Follow OWASP guidelines
+    - Avoid exposing sensitive data
+  </Card>
+</CardGroup>
+
+## Adding a New Tool
+
+To add a new OSINT tool to the platform:
+
+### 1. Create a New Django App
+
+```bash
+python manage.py startapp ToolName
+```
+
+### 2. Structure Your App
+
+Your app should follow this structure:
+
+```
+ToolName/
+├── __init__.py
+├── admin.py
+├── apps.py
+├── forms.py          # Form definitions
+├── models.py         # Database models (if needed)
+├── urls.py           # URL routing
+├── views.py          # View logic
+├── templates/        # Tool-specific templates
+│   └── ToolName/
+│       ├── search.html
+│       └── results.html
+└── static/           # Tool-specific static files
+    ├── css/
+    └── js/
+```
+
+### 3. Register the App
+
+Add your app to `INSTALLED_APPS` in `osint_hub/settings.py`:
+
+```python
+INSTALLED_APPS = [
+    # ...
+    "ToolName",
+]
+```
+
+### 4. Add URL Routing
+
+Include your app's URLs in `osint_hub/urls.py`:
+
+```python
+urlpatterns = [
+    # ...
+    path("toolname/", include("ToolName.urls")),
+]
+```
+
+### 5. Implement Views
+
+Create views for search and results pages with proper error handling:
+
+```python
+from django.shortcuts import render
+from django.views import View
+
+class ToolSearchView(View):
+    def get(self, request):
+        return render(request, "ToolName/search.html")
+    
+    def post(self, request):
+        # Process form data
+        # Execute tool logic
+        # Return results
+        return render(request, "ToolName/results.html", context)
+```
+
+### 6. Update Homepage
+
+Add a card for your tool in `templates/includes/cards.html`
+
+## Testing
+
+<Note>
+  While OSINT Hub doesn't currently have a comprehensive test suite, contributors are encouraged to write tests for new features.
+</Note>
+
+Tests should be placed in:
+- App-specific tests: `ToolName/tests.py`
+- Integration tests: `test/test_integrations.py`
+
+## Documentation
+
+If you add new features:
+
+- Update the main README.md
+- Add inline code comments
+- Update relevant documentation pages
+- Include usage examples
+
+## Security Considerations
+
+<Warning>
+  OSINT tools can process sensitive information. Always prioritize security in your contributions.
+</Warning>
+
+### Important Security Practices:
+
+- **Input Validation**: Sanitize all user inputs to prevent injection attacks
+- **Timeouts**: Implement timeouts for external processes (recommended: 60-300s)
+- **File Uploads**: Validate file types and sizes (max 50 MB for EXIF tool)
+- **Path Traversal**: Prevent directory traversal attacks in file operations
+- **Rate Limiting**: Consider rate limiting for intensive operations
+- **Error Messages**: Don't expose sensitive information in error messages
+
+### Security Tools in Use:
+
+- CSRF protection on all forms
+- Content Security Policy (CSP)
+- HSTS headers in production
+- XSS protection
+- Clickjacking protection
+
+## Code Review Process
+
+When your Pull Request is submitted:
+
+1. **Automated Checks**: Code will be checked for style and basic errors
+2. **Manual Review**: Maintainers will review your code for:
+   - Code quality and style
+   - Security implications
+   - Performance considerations
+   - Documentation completeness
+3. **Feedback**: You may receive requests for changes
+4. **Approval**: Once approved, your PR will be merged
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github">
+    Report bugs or request features through GitHub Issues
+  </Card>
+
+  <Card title="Contact" icon="envelope">
+    Email: nakajito@proton.me
+    GitHub: @nakajito
+  </Card>
+</CardGroup>
+
+## License
+
+By contributing to OSINT Hub, you agree that your contributions will be licensed under the MIT License.
+
+---
+
+Thank you for contributing to OSINT Hub! Your efforts help make OSINT tools more accessible to everyone.

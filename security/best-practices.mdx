@@ -1,0 +1,433 @@
+---
+title: Security Best Practices
+description: Best practices for secure OSINT investigations using OSINT Hub
+---
+
+OSINT investigations often involve sensitive data and can expose investigators to operational security risks. Follow these best practices to maintain security throughout your investigations.
+
+## Operational Security (OPSEC)
+
+### Network Isolation
+
+**Use VPNs or proxies** when conducting investigations:
+- Masks your real IP address from target platforms
+- Prevents linking multiple investigations to the same source
+- Protects against IP-based tracking and profiling
+
+<Warning>
+Direct connections to target platforms may reveal your location, organization, and investigation patterns. Always use appropriate network isolation techniques.
+</Warning>
+
+**Recommended approach:**
+```bash
+# Use a dedicated VPN for OSINT work
+# Rotate exit nodes between investigations
+# Consider using Tor for high-sensitivity investigations
+```
+
+### Browser Isolation
+
+Maintain separate browser profiles or containers:
+- **Investigation profile**: Dedicated to OSINT work only
+- **Personal profile**: Never mix with investigation activities
+- Use browser extensions like Firefox Multi-Account Containers
+
+```
+Investigation Browser Setup:
+├── No personal accounts logged in
+├── Minimal extensions (only security/privacy tools)
+├── Cookies cleared between investigations
+└── JavaScript/tracking protection enabled
+```
+
+### Device Security
+
+**Physical security:**
+- Use full-disk encryption (LUKS, BitLocker, FileVault)
+- Enable screen lock with short timeout (< 5 minutes)
+- Secure physical access to investigation devices
+
+**Virtual machines:**
+```bash
+# Consider running OSINT Hub in an isolated VM
+sudo apt install virtualbox
+# Create disposable snapshots for each investigation
+# Revert to clean state between sensitive operations
+```
+
+## Data Protection
+
+### Sensitive Data Handling
+
+OSINT investigations often collect personally identifiable information (PII). Handle this data responsibly:
+
+<Note>
+OSINT Hub stores search results locally in `~/.local/share/osint_hub/search_results/` by default. This location can be configured via the `SEARCH_RESULTS_DIR` environment variable.
+</Note>
+
+**Data minimization:**
+- Only collect data necessary for your investigation
+- Delete results when the investigation concludes
+- Avoid downloading or storing unnecessary PII
+
+**Access control:**
+```bash
+# Restrict file permissions on search results
+chmod 700 ~/.local/share/osint_hub/search_results/
+
+# Use encrypted storage for sensitive results
+sudo cryptsetup luksFormat /dev/sdX
+sudo cryptsetup luksOpen /dev/sdX osint_vault
+```
+
+### Database Security
+
+If using OSINT Hub with a production database:
+
+```python
+# Use PostgreSQL with encrypted connections
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'osint_hub',
+        'USER': 'osint_user',
+        'PASSWORD': os.environ['DB_PASSWORD'],
+        'HOST': 'localhost',
+        'PORT': '5432',
+        'OPTIONS': {
+            'sslmode': 'require',
+        },
+    }
+}
+```
+
+**Database hardening:**
+- Use strong, unique passwords
+- Restrict database network access (localhost only, or firewall rules)
+- Enable query logging for audit trails
+- Regular backup to encrypted storage
+
+### Session Management
+
+OSINT Hub uses Django sessions to store temporary search data:
+
+```python
+# Clear sensitive session data after use
+request.session.pop('searched_email', None)
+request.session.pop('holehe_output', None)
+```
+
+**Best practices:**
+- Set short session timeouts for production deployments
+- Use database-backed sessions (not cookies) for sensitive data
+- Clear your browser sessions after completing investigations
+
+## Authentication & Access Control
+
+### Multi-Factor Authentication
+
+For production deployments, implement MFA:
+
+```bash
+# Install django-otp for 2FA
+pip install django-otp qrcode
+
+# Add to INSTALLED_APPS
+INSTALLED_APPS = [
+    'django_otp',
+    'django_otp.plugins.otp_totp',
+    # ...
+]
+```
+
+### Role-Based Access
+
+Implement Django's permission system for multi-user environments:
+
+```python
+# In views.py
+from django.contrib.auth.decorators import login_required, permission_required
+
+@login_required
+@permission_required('email_holehe.can_search_email')
+def search_email(request):
+    # Only authorized users can access
+    pass
+```
+
+### Password Policies
+
+OSINT Hub enforces strong passwords by default. For additional security:
+
+```python
+# Customize password validators
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 12}  # Increase minimum length
+    },
+    # Add custom validators for complexity
+]
+```
+
+## Investigation Practices
+
+### Documentation Security
+
+Maintain secure investigation notes:
+- **Encrypt notes**: Use tools like Cryptomator, VeraCrypt, or GPG
+- **Avoid cloud storage**: Unless using end-to-end encryption
+- **Redact sensitive info**: Before sharing findings
+
+```bash
+# Encrypt investigation notes with GPG
+gpg --symmetric --cipher-algo AES256 investigation_notes.txt
+# Creates investigation_notes.txt.gpg
+
+# Decrypt when needed
+gpg --decrypt investigation_notes.txt.gpg > investigation_notes.txt
+```
+
+### Evidence Chain of Custody
+
+Maintain forensic integrity:
+
+```bash
+# Generate checksums for collected evidence
+sha256sum evidence_file.json > evidence_file.json.sha256
+
+# Verify integrity later
+sha256sum -c evidence_file.json.sha256
+```
+
+**Evidence documentation:**
+- Timestamp all searches and results
+- Record source URLs and collection methods
+- Maintain unmodified copies of original data
+- Document any transformations or analysis
+
+### Avoiding Detection
+
+When investigating sensitive targets:
+
+<Warning>
+Some investigation techniques may violate terms of service or local laws. Always understand the legal and ethical boundaries of your jurisdiction before conducting OSINT investigations.
+</Warning>
+
+**Rate limiting:**
+```python
+# OSINT Hub implements timeouts to prevent abuse
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+
+# Add delays between requests to external services
+import time
+time.sleep(random.uniform(1, 3))  # Random delay
+```
+
+**Rotating identities:**
+- Use different usernames/email addresses for different investigations
+- Rotate VPN exit points between searches
+- Clear cookies and cache between investigation phases
+
+## Third-Party Tool Security
+
+OSINT Hub integrates external tools (Holehe, Sherlock, ExifTool). Ensure these are secure:
+
+### Tool Verification
+
+```bash
+# Verify tool integrity before installation
+wget https://exiftool.org/Image-ExifTool-12.70.tar.gz
+wget https://exiftool.org/checksums.txt
+sha256sum -c checksums.txt
+
+# Install from trusted sources only
+pip install holehe --user
+```
+
+### Tool Isolation
+
+OSINT Hub runs external tools with timeout protection:
+
+```python
+# Subprocess calls use timeouts and no shell execution
+result = subprocess.run(
+    [tool_path, user_input],
+    capture_output=True,
+    text=True,
+    timeout=60,  # Prevent hanging processes
+)
+```
+
+**Additional isolation:**
+- Run tools in containerized environments (Docker)
+- Use SELinux or AppArmor policies to restrict tool capabilities
+- Monitor network connections from external tools
+
+### Dependency Management
+
+Keep dependencies updated to patch security vulnerabilities:
+
+```bash
+# Check for outdated packages
+pip list --outdated
+
+# Update specific packages
+pip install --upgrade django django-csp celery
+
+# Use pip-audit to scan for known vulnerabilities
+pip install pip-audit
+pip-audit
+```
+
+## Deployment Security
+
+### Reverse Proxy Configuration
+
+Run OSINT Hub behind Nginx or Apache:
+
+```nginx
+# /etc/nginx/sites-available/osinthub
+server {
+    listen 443 ssl http2;
+    server_name osinthub.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/osinthub.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/osinthub.example.com/privkey.pem;
+
+    # Security headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=osint:10m rate=10r/s;
+    limit_req zone=osint burst=20 nodelay;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Host $host;
+    }
+}
+```
+
+### Container Security
+
+If deploying with Docker:
+
+```dockerfile
+# Use minimal base images
+FROM python:3.11-slim
+
+# Run as non-root user
+RUN useradd -m -u 1000 osint
+USER osint
+
+# Drop unnecessary capabilities
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    exiftool \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+### Firewall Configuration
+
+```bash
+# Use UFW to restrict access
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow ssh
+sudo ufw allow 443/tcp  # HTTPS only
+sudo ufw enable
+```
+
+## Incident Response
+
+### Security Monitoring
+
+Implement logging for security events:
+
+```python
+# settings.py
+LOGGING = {
+    'version': 1,
+    'handlers': {
+        'security_file': {
+            'level': 'WARNING',
+            'class': 'logging.FileHandler',
+            'filename': '/var/log/osint_hub/security.log',
+        },
+    },
+    'loggers': {
+        'django.security': {
+            'handlers': ['security_file'],
+            'level': 'WARNING',
+        },
+    },
+}
+```
+
+**Monitor for:**
+- Failed authentication attempts
+- CSRF token validation failures
+- Unusual task execution patterns
+- CSP violation reports
+
+### Breach Response
+
+If you suspect a security incident:
+
+1. **Isolate the system**: Disconnect from network if actively compromised
+2. **Preserve evidence**: Don't modify logs or data
+3. **Review logs**: Check for unauthorized access or data exfiltration
+4. **Rotate credentials**: Change all passwords and API keys
+5. **Assess impact**: Determine what data may have been accessed
+6. **Notify stakeholders**: Follow your organization's incident response plan
+
+## Compliance & Legal
+
+### Data Privacy Regulations
+
+Depending on your jurisdiction, OSINT investigations may be subject to:
+- **GDPR** (EU): Regulations on processing personal data
+- **CCPA** (California): Consumer privacy rights
+- **Local data protection laws**: Vary by country
+
+<Note>
+Consult legal counsel to ensure your OSINT practices comply with applicable regulations. This documentation is not legal advice.
+</Note>
+
+### Ethical Guidelines
+
+**Responsible OSINT principles:**
+- Respect privacy and dignity of individuals
+- Only collect data for legitimate purposes
+- Avoid techniques that cause harm or disruption
+- Follow platform terms of service
+- Document your methodology for transparency
+
+### Data Retention
+
+Establish clear policies:
+
+```bash
+# Automated cleanup of old search results
+find ~/.local/share/osint_hub/search_results/ -mtime +90 -delete
+
+# Or use a cron job
+0 0 * * 0 find ~/.local/share/osint_hub/search_results/ -mtime +90 -delete
+```
+
+**Retention guidelines:**
+- Define how long data should be kept
+- Securely delete data when no longer needed
+- Maintain audit logs of deletion activities
+- Balance operational needs with privacy obligations
+
+## Additional Resources
+
+- [OWASP Top 10](https://owasp.org/www-project-top-ten/) - Common web security risks
+- [NIST Cybersecurity Framework](https://www.nist.gov/cyberframework) - Security best practices
+- [IntelTechniques OSINT Resources](https://inteltechniques.com/) - OSINT methodology and tools
+- [Bellingcat Online Investigation Toolkit](https://www.bellingcat.com/) - OSINT investigation techniques

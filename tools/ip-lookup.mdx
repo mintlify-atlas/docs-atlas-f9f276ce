@@ -1,0 +1,372 @@
+---
+title: IP Lookup
+description: Geolocate IP addresses and retrieve network information including ASN, location, and ISP details
+icon: globe
+---
+
+## Overview
+
+The IP Lookup tool performs geolocation queries on IPv4 and IPv6 addresses using the [ip.guide](https://ip.guide) API. It retrieves comprehensive information including geographic location, network details, autonomous system (AS) information, and ISP data.
+
+<Note>
+  The tool supports both IPv4 and IPv6 addresses with built-in validation using Django's `validate_ipv46_address` validator.
+</Note>
+
+## How It Works
+
+The tool sends HTTP requests to a configurable IP geolocation API and parses the JSON response to extract location, network, and ASN information.
+
+### Technical Implementation
+
+From `IPLookup/views.py:23-40`:
+
+```python
+def ip_search(request):
+    if request.method == "POST":
+        form = IPLookupForm(request.POST)
+        if form.is_valid():
+            ip = form.cleaned_data["ip"]
+            api_url = _build_api_url(ip)
+            
+            try:
+                resp = httpx.get(api_url, timeout=15.0)
+                try:
+                    data = resp.json()
+                except Exception:
+                    data = {"raw": resp.text, "status_code": resp.status_code}
+                
+                request.session["iplookup_results"] = data
+                request.session["iplookup_ip"] = ip
+                return redirect(reverse("iplookup:results"))
+```
+
+## Usage
+
+<Steps>
+  <Step title="Enter IP Address">
+    Input an IPv4 or IPv6 address in the search form.
+    
+    **Valid Examples:**
+    - IPv4: `8.8.8.8`, `1.1.1.1`, `192.168.1.1`
+    - IPv6: `2001:4860:4860::8888`, `::1`
+  </Step>
+  
+  <Step title="Submit Query">
+    Click search to query the IP geolocation API. The request has a 15-second timeout.
+  </Step>
+  
+  <Step title="View Results">
+    Review the comprehensive information returned:
+    
+    - **Location**: City, country, timezone, coordinates
+    - **Network**: CIDR range, number of hosts
+    - **ASN**: Autonomous system number, organization, RIR
+  </Step>
+</Steps>
+
+## IP Address Validation
+
+The tool validates IP addresses using Django's built-in validator:
+
+From `IPLookup/forms.py:12-20`:
+
+```python
+def clean_ip(self):
+    ip = self.cleaned_data.get("ip")
+    try:
+        validate_ipv46_address(ip)
+    except forms.ValidationError:
+        raise forms.ValidationError(
+            "Introduce una dirección IP válida IPv4 o IPv6."
+        )
+    return ip
+```
+
+This ensures:
+- Valid IPv4 format (e.g., `192.168.1.1`)
+- Valid IPv6 format (e.g., `2001:db8::1`)
+- Rejection of invalid strings or malformed addresses
+
+## API Configuration
+
+The tool uses a flexible API URL template system:
+
+### URL Template Building
+
+From `IPLookup/views.py:12-20`:
+
+```python
+def _build_api_url(ip: str) -> str:
+    template = getattr(settings, "IP_GUIDE_API_TEMPLATE", "https://ip.guide/{ip}")
+    api_key = getattr(settings, "IP_GUIDE_API_KEY", None)
+    try:
+        if "{api_key}" in template:
+            return template.format(ip=ip, api_key=api_key or "")
+        return template.format(ip=ip)
+    except Exception:
+        return template.replace("{ip}", ip)
+```
+
+### Configuration Options
+
+<ParamField path="IP_GUIDE_API_TEMPLATE" type="string" default="https://ip.guide/{ip}">
+  API endpoint template with `{ip}` placeholder for the IP address. Can include `{api_key}` placeholder for authenticated requests.
+</ParamField>
+
+<ParamField path="IP_GUIDE_API_KEY" type="string" default={null}>
+  Optional API key for authenticated requests to premium IP geolocation services.
+</ParamField>
+
+## Response Structure
+
+### Data Normalization
+
+The tool normalizes API responses into a consistent structure:
+
+From `IPLookup/views.py:66-93`:
+
+```python
+if isinstance(raw, dict):
+    location = raw.get("location", {}) or {}
+    network = raw.get("network", {}) or {}
+    asn = network.get("autonomous_system", {}) or {}
+    
+    parsed = {
+        "ip": raw.get("ip", ip),
+        "location": {
+            "city": location.get("city"),
+            "country": location.get("country"),
+            "timezone": location.get("timezone"),
+            "latitude": location.get("latitude"),
+            "longitude": location.get("longitude"),
+        },
+        "network": {
+            "cidr": network.get("cidr"),
+            "hosts": network.get("hosts"),
+        },
+        "asn": {
+            "asn": asn.get("asn"),
+            "name": asn.get("name"),
+            "organization": asn.get("organization"),
+            "country": asn.get("country"),
+            "rir": asn.get("rir"),
+        },
+        "raw": raw,
+    }
+```
+
+### Response Fields
+
+#### Location Information
+
+<ParamField path="location.city" type="string">
+  City name where the IP is located
+</ParamField>
+
+<ParamField path="location.country" type="string">
+  Country name or ISO code
+</ParamField>
+
+<ParamField path="location.timezone" type="string">
+  IANA timezone identifier (e.g., "America/New_York")
+</ParamField>
+
+<ParamField path="location.latitude" type="float">
+  Geographic latitude coordinate
+</ParamField>
+
+<ParamField path="location.longitude" type="float">
+  Geographic longitude coordinate
+</ParamField>
+
+#### Network Information
+
+<ParamField path="network.cidr" type="string">
+  CIDR notation of the network block (e.g., "8.8.8.0/24")
+</ParamField>
+
+<ParamField path="network.hosts" type="integer">
+  Number of hosts in the network range
+</ParamField>
+
+#### ASN Information
+
+<ParamField path="asn.asn" type="integer">
+  Autonomous System Number
+</ParamField>
+
+<ParamField path="asn.name" type="string">
+  AS name or identifier
+</ParamField>
+
+<ParamField path="asn.organization" type="string">
+  Organization that owns the AS
+</ParamField>
+
+<ParamField path="asn.country" type="string">
+  Country where the AS is registered
+</ParamField>
+
+<ParamField path="asn.rir" type="string">
+  Regional Internet Registry (ARIN, RIPE, APNIC, LACNIC, AFRINIC)
+</ParamField>
+
+## API Endpoints
+
+Defined in `IPLookup/urls.py`:
+
+| Endpoint | View Function | Purpose |
+|----------|--------------|----------|
+| `/` | `ip_search` | Search form and query processing |
+| `/results/` | `results` | Display formatted results |
+
+## HTTP Client
+
+The tool uses `httpx` for HTTP requests with:
+
+- **Timeout**: 15 seconds
+- **Error Handling**: Graceful degradation on API failures
+- **JSON Parsing**: Automatic with text fallback
+
+```python
+resp = httpx.get(api_url, timeout=15.0)
+try:
+    data = resp.json()
+except Exception:
+    data = {"raw": resp.text, "status_code": resp.status_code}
+```
+
+## Session Storage
+
+Results are stored in Django sessions:
+
+```python
+request.session["iplookup_results"] = data
+request.session["iplookup_ip"] = ip
+```
+
+This allows:
+- Persistent results across page navigation
+- No database overhead
+- Automatic cleanup on session expiration
+
+## Error Handling
+
+<Warning>
+  The tool handles several error conditions:
+  
+  - **Invalid IP Format**: Form validation error with descriptive message
+  - **API Timeout**: 15-second timeout with error message
+  - **API Unavailable**: Catches connection errors and displays user-friendly message
+  - **JSON Parse Error**: Falls back to raw text response
+  - **No Results**: Displays warning message
+</Warning>
+
+From `IPLookup/views.py:41-47`:
+
+```python
+except Exception as e:
+    logger.exception(f"Error querying IP API for {ip}: {e}")
+    messages.error(
+        request,
+        "Ocurrió un error al consultar el servicio de geolocalización."
+    )
+    return redirect(reverse("iplookup:search"))
+```
+
+## Use Cases
+
+### Threat Intelligence
+- Identify geographic origin of malicious traffic
+- Correlate attack patterns with ASN ownership
+- Map threat actor infrastructure
+
+### Network Investigation
+- Verify IP ownership and allocation
+- Identify ISP and hosting providers
+- Trace network paths and routing
+
+### Access Control
+- Implement geo-blocking policies
+- Verify VPN/proxy usage
+- Validate expected user locations
+
+### Forensic Analysis
+- Investigate suspicious connection sources
+- Correlate IP addresses with physical locations
+- Build timeline of network activity
+
+### Compliance
+- Verify data residency requirements
+- Audit access from specific regions
+- Monitor cross-border data transfers
+
+## Example Queries
+
+### Public DNS Servers
+
+```plaintext
+8.8.8.8         → Google Public DNS (United States)
+1.1.1.1         → Cloudflare DNS (Australia)
+9.9.9.9         → Quad9 DNS (Switzerland)
+```
+
+### Reserved IP Ranges
+
+```plaintext
+127.0.0.1       → Loopback (local machine)
+192.168.1.1     → Private network (RFC 1918)
+10.0.0.1        → Private network (RFC 1918)
+::1             → IPv6 loopback
+```
+
+<Note>
+  Private IP addresses (RFC 1918) may return generic or no results as they are not routable on the public internet.
+</Note>
+
+## Limitations
+
+- API rate limits may apply depending on the service
+- Geolocation accuracy varies (typically city-level)
+- Private IP addresses return no meaningful data
+- VPN/proxy usage can obscure true location
+- Database accuracy depends on RIR registration updates
+- Some API providers require authentication for full features
+
+## Privacy Considerations
+
+<Warning>
+  **GDPR and Privacy Compliance**
+  
+  IP addresses can be considered personal data under GDPR and other privacy regulations. When using this tool:
+  
+  - Obtain proper legal authorization for investigations
+  - Log all queries for audit purposes
+  - Implement appropriate access controls
+  - Document legitimate interest or legal basis
+  - Consider data retention policies
+</Warning>
+
+## Performance
+
+- **Query Time**: Typically 100-500ms depending on API latency
+- **Timeout**: 15 seconds maximum
+- **Caching**: Results cached in session (no persistent cache)
+- **Rate Limiting**: Depends on API provider
+
+## Alternative APIs
+
+The tool's flexible configuration supports various IP geolocation APIs:
+
+- **ip.guide**: Default, free, no registration required
+- **ipinfo.io**: `https://ipinfo.io/{ip}/json?token={api_key}`
+- **ipapi.co**: `https://ipapi.co/{ip}/json/`
+- **ip-api.com**: `http://ip-api.com/json/{ip}`
+- **ipgeolocation.io**: `https://api.ipgeolocation.io/ipgeo?apiKey={api_key}&ip={ip}`
+
+Configure via `settings.py`:
+
+```python
+IP_GUIDE_API_TEMPLATE = "https://ipinfo.io/{ip}/json?token={api_key}"
+IP_GUIDE_API_KEY = "your_api_key_here"
+```

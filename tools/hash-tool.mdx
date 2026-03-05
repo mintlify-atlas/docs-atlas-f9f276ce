@@ -1,0 +1,318 @@
+---
+title: Hash Tool
+description: Generate and verify cryptographic hashes for text and files using multiple algorithms
+icon: fingerprint
+---
+
+## Overview
+
+The Hash Tool provides two core functions:
+1. **Hash Generation**: Calculate cryptographic hashes for text or files
+2. **Hash Verification**: Verify file/text integrity by comparing computed hashes against expected values
+
+This tool supports multiple hashing algorithms including MD5, SHA-1, SHA-224, SHA-256, SHA-384, and SHA-512.
+
+<Note>
+  The tool uses Python's built-in `hashlib` library for secure cryptographic hash computation.
+</Note>
+
+## Supported Algorithms
+
+From `HashTool/forms.py:3-10`:
+
+```python
+ALGO_CHOICES = [
+    ("md5", "md5"),
+    ("sha1", "sha1"),
+    ("sha224", "sha224"),
+    ("sha256", "sha256"),
+    ("sha384", "sha384"),
+    ("sha512", "sha512"),
+]
+```
+
+### Algorithm Comparison
+
+| Algorithm | Output Length | Use Case | Security |
+|-----------|--------------|----------|----------|
+| MD5 | 128 bits (32 hex) | Legacy systems only | Broken ⚠️ |
+| SHA-1 | 160 bits (40 hex) | Legacy systems only | Weak ⚠️ |
+| SHA-224 | 224 bits (56 hex) | Constrained environments | Good |
+| SHA-256 | 256 bits (64 hex) | General purpose | Strong ✓ |
+| SHA-384 | 384 bits (96 hex) | High security | Strong ✓ |
+| SHA-512 | 512 bits (128 hex) | Maximum security | Strong ✓ |
+
+<Warning>
+  MD5 and SHA-1 are considered cryptographically broken and should not be used for security-critical applications. Use SHA-256 or higher for integrity verification.
+</Warning>
+
+## Hash Generation
+
+### Usage
+
+<Steps>
+  <Step title="Choose Input Type">
+    Select either text input or file upload:
+    
+    - **Text**: Enter any text string to hash
+    - **File**: Upload a file to generate its hash
+  </Step>
+  
+  <Step title="Select Algorithm">
+    Choose the hashing algorithm from the dropdown. SHA-256 is selected by default.
+  </Step>
+  
+  <Step title="Generate Hash">
+    Click the "Generate" button to compute the hash. The result is displayed as a hexadecimal string.
+  </Step>
+</Steps>
+
+### Technical Implementation
+
+From `HashTool/views.py:7-15`:
+
+```python
+def calculate_hash(algo, file=None, text=None):
+    """Función auxiliar para calcular el hash de un archivo o texto."""
+    h = hashlib.new(algo)
+    if file:
+        for chunk in file.chunks():
+            h.update(chunk)
+    elif text:
+        h.update(text.encode("utf-8"))
+    return h.hexdigest()
+```
+
+### File Processing
+
+The tool processes files in chunks to handle large files efficiently:
+
+```python
+if file:
+    for chunk in file.chunks():
+        h.update(chunk)
+```
+
+This approach:
+- Minimizes memory usage
+- Enables hashing of large files
+- Streams data incrementally
+
+### Text Processing
+
+Text is encoded to UTF-8 before hashing:
+
+```python
+if text:
+    h.update(text.encode("utf-8"))
+```
+
+## Hash Verification
+
+### Usage
+
+<Steps>
+  <Step title="Input Target">
+    Provide the text or file you want to verify.
+  </Step>
+  
+  <Step title="Enter Expected Hash">
+    Paste the hash value you want to verify against. The hash should be in hexadecimal format.
+  </Step>
+  
+  <Step title="Select Algorithm">
+    Choose the same algorithm that was used to generate the original hash.
+  </Step>
+  
+  <Step title="Verify">
+    Click "Verify" to compare the computed hash with the expected value.
+    
+    - **Success**: Green message confirming hash match
+    - **Failure**: Red error message indicating mismatch
+  </Step>
+</Steps>
+
+### Verification Logic
+
+From `HashTool/views.py:41-62`:
+
+```python
+def verify(request):
+    if request.method == "POST":
+        form = VerifyForm(request.POST, request.FILES)
+        if form.is_valid():
+            data = form.cleaned_data
+            expected = data["hash_value"].strip().lower()
+            
+            computed = calculate_hash(
+                algo=data["algorithm"],
+                file=request.FILES.get("file"),
+                text=data.get("text"),
+            )
+            
+            if computed == expected:
+                messages.success(
+                    request, 
+                    f"¡Verificación exitosa! El hash coincide: {computed}"
+                )
+            else:
+                messages.error(
+                    request,
+                    "Error de integridad: El hash calculado no coincide."
+                )
+```
+
+### Hash Normalization
+
+The verification process normalizes both hashes:
+- Strips whitespace: `.strip()`
+- Converts to lowercase: `.lower()`
+- Performs case-insensitive comparison
+
+This ensures that format variations don't cause false negatives.
+
+## API Endpoints
+
+Defined in `HashTool/urls.py`:
+
+| Endpoint | View Function | Purpose |
+|----------|--------------|----------|
+| `/` | `index` | Main page with generation form |
+| `/verify/` | `verify` | Process verification requests |
+
+## Form Structure
+
+### GenerateForm
+
+<ParamField path="text" type="string" required={false}>
+  Text string to hash (optional if file is provided)
+</ParamField>
+
+<ParamField path="file" type="file" required={false}>
+  File to hash (optional if text is provided)
+</ParamField>
+
+<ParamField path="algorithm" type="select" default="sha256">
+  Hashing algorithm to use
+</ParamField>
+
+### VerifyForm
+
+<ParamField path="text" type="string" required={false}>
+  Text string to verify (optional if file is provided)
+</ParamField>
+
+<ParamField path="file" type="file" required={false}>
+  File to verify (optional if text is provided)
+</ParamField>
+
+<ParamField path="algorithm" type="select" default="sha256">
+  Hashing algorithm to use
+</ParamField>
+
+<ParamField path="hash_value" type="string" required>
+  Expected hash value in hexadecimal format
+</ParamField>
+
+## Code Example: Generate Hash
+
+```python
+from HashTool.views import calculate_hash
+
+# Hash text
+text_hash = calculate_hash(algo="sha256", text="Hello World")
+print(text_hash)  # a591a6d40bf420404a011733cfb7b190d62c65bf0bcda190f262960
+
+# Hash file (from Django request)
+file_hash = calculate_hash(
+    algo="sha256",
+    file=request.FILES.get("uploaded_file")
+)
+```
+
+## Use Cases
+
+### File Integrity Verification
+- Verify downloaded files haven't been corrupted or tampered with
+- Compare hash against publisher's official hash
+- Detect unauthorized modifications
+
+### Forensic Analysis
+- Generate unique identifiers for evidence files
+- Verify evidence integrity chain of custody
+- Create file fingerprints for databases
+
+### Password Storage
+- Hash passwords before storage (though specialized libraries like bcrypt are recommended)
+- One-way encryption for sensitive data
+
+### Duplicate Detection
+- Identify identical files across systems
+- Deduplicate storage by hash comparison
+
+### Data Verification
+- Ensure text/data hasn't changed
+- Verify configuration file integrity
+- Check backup consistency
+
+## Security Considerations
+
+<Warning>
+  **Algorithm Selection**
+  
+  - **DO NOT** use MD5 or SHA-1 for security-critical applications
+  - **DO** use SHA-256 or higher for file integrity verification
+  - **DO** use specialized algorithms (bcrypt, Argon2) for password hashing
+  - **DO** use SHA-384 or SHA-512 for maximum security requirements
+</Warning>
+
+### MD5 Vulnerabilities
+
+MD5 is vulnerable to:
+- Collision attacks (two different inputs producing same hash)
+- Pre-image attacks
+- Should only be used for legacy compatibility
+
+### SHA-1 Vulnerabilities
+
+SHA-1 has been:
+- Practically broken since 2017
+- Vulnerable to collision attacks
+- Deprecated by major browsers and security standards
+
+### Recommended Practices
+
+1. **Use SHA-256 as minimum** for integrity verification
+2. **Use SHA-384/512** for high-security environments
+3. **Never rely on hash alone** for authentication
+4. **Combine with digital signatures** for non-repudiation
+5. **Use HMAC** for message authentication
+
+## Error Handling
+
+The tool provides user-friendly error messages:
+
+```python
+if computed == expected:
+    messages.success(request, f"¡Verificación exitosa! El hash coincide: {computed}")
+else:
+    messages.error(
+        request,
+        "Error de integridad: El hash calculado no coincide con el proporcionado."
+    )
+```
+
+## Performance Considerations
+
+- **Chunk Processing**: Files are processed in chunks to minimize memory usage
+- **Algorithm Speed**: MD5 is fastest, SHA-512 is slowest (but most secure)
+- **Large Files**: All algorithms handle large files efficiently through streaming
+- **Memory Usage**: Constant memory usage regardless of file size
+
+## Limitations
+
+- No rate limiting on hash generation
+- No file size restrictions (limited by Django's upload limits)
+- Single-file processing only (no batch operations)
+- No hash database or history storage
+- Results not persisted (session-based only)

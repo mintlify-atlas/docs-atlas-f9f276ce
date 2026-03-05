@@ -1,0 +1,483 @@
+---
+title: Project Structure
+description: Understanding the OSINT Hub codebase architecture and organization
+icon: folder-tree
+---
+
+<Note>
+  OSINT Hub follows Django's standard project structure with modular apps for each OSINT tool.
+</Note>
+
+## Overview
+
+OSINT Hub is built with Django 5.2 and follows a modular architecture where each OSINT tool is implemented as a separate Django app. This design makes it easy to add, remove, or modify tools independently.
+
+## Root Directory Structure
+
+```
+osint_hub/
+├── osint_hub/                  # Django project configuration
+├── email_holehe/               # Email search app (Holehe)
+├── ExifTool/                   # EXIF metadata extraction
+├── HashTool/                   # Hash generation and verification
+├── IPLookup/                   # IP geolocation lookup
+├── PhoneSearch/                # Phone number search
+├── UsernameSearch/             # Username search (Sherlock)
+├── templates/                  # Global templates
+├── static/                     # Static files (CSS, JS, images)
+├── staticfiles/                # Collected static files (production)
+├── utils/                      # Shared utility functions
+├── test/                       # Integration tests
+├── manage.py                   # Django management script
+├── requirements.txt            # Python dependencies
+├── .env.example                # Environment variables template
+├── pythonanywhere_wsgi.py      # PythonAnywhere WSGI configuration
+└── README.md                   # Project documentation
+```
+
+## Core Configuration (`osint_hub/`)
+
+The main Django project configuration directory.
+
+<CardGroup cols={2}>
+  <Card title="settings.py" icon="gear">
+    Main Django settings including:
+    - Database configuration
+    - Installed apps
+    - Middleware stack
+    - Security settings (CSP, HSTS)
+    - Static files configuration
+    - Celery configuration
+  </Card>
+
+  <Card title="urls.py" icon="route">
+    Root URL configuration that routes to:
+    - Home page
+    - Each tool's URLs
+    - SEO files (robots.txt, sitemap.xml)
+    - Security files (security.txt)
+  </Card>
+
+  <Card title="celery.py" icon="clock">
+    Celery configuration for asynchronous task processing (used by PhoneSearch)
+  </Card>
+
+  <Card title="wsgi.py / asgi.py" icon="server">
+    WSGI and ASGI application entry points for production deployment
+  </Card>
+</CardGroup>
+
+## Django Apps
+
+Each OSINT tool is implemented as a separate Django app with a consistent structure.
+
+### App Structure Pattern
+
+Every tool app follows this structure:
+
+```
+ToolName/
+├── __init__.py
+├── admin.py              # Django admin configuration
+├── apps.py               # App configuration
+├── forms.py              # Form definitions for user input
+├── models.py             # Database models (if needed)
+├── views.py              # View logic and request handling
+├── urls.py               # URL routing for the tool
+├── tasks.py              # Celery tasks (for async operations)
+├── migrations/           # Database migrations
+├── templates/            # Tool-specific templates
+│   └── ToolName/
+│       ├── search.html
+│       └── results.html
+└── static/               # Tool-specific static files (optional)
+    ├── css/
+    └── js/
+```
+
+### Individual Apps
+
+<Accordion title="email_holehe/" icon="envelope">
+  **Email Search Tool**
+  
+  Searches for email addresses across multiple platforms using Holehe.
+  
+  **Key Files:**
+  - `views.py`: Handles email search logic with 60s timeout
+  - `forms.py`: Email validation form
+  - Templates for search and results display
+  
+  **Route:** `/email/`
+</Accordion>
+
+<Accordion title="ExifTool/" icon="image">
+  **EXIF Metadata Extraction**
+  
+  Extracts EXIF, XMP, and IPTC metadata from images, videos, and PDFs.
+  
+  **Key Features:**
+  - File upload handling (max 50 MB)
+  - GPS coordinate extraction
+  - OpenStreetMap integration
+  - Supports: JPEG, PNG, GIF, TIFF, MP4, PDF
+  
+  **Key Files:**
+  - `views.py`: File upload and metadata extraction logic
+  - `forms.py`: File upload form with validation
+  - Uses PyExifTool library
+  
+  **Route:** `/exiftool/`
+</Accordion>
+
+<Accordion title="HashTool/" icon="fingerprint">
+  **Hash Generation and Verification**
+  
+  Generates and verifies cryptographic hashes for text and files.
+  
+  **Supported Algorithms:**
+  - MD5
+  - SHA1
+  - SHA256
+  - SHA512
+  - BLAKE2
+  
+  **Key Files:**
+  - `views.py`: Hash generation and verification logic
+  - `forms.py`: Input forms for text/file hashing
+  
+  **Route:** `/hash/`
+</Accordion>
+
+<Accordion title="IPLookup/" icon="globe">
+  **IP Address Geolocation**
+  
+  Looks up geolocation and network information for IP addresses.
+  
+  **Information Retrieved:**
+  - City and country
+  - Timezone
+  - Coordinates
+  - ASN (Autonomous System Number)
+  - Network block
+  
+  **Key Files:**
+  - `views.py`: IP lookup logic with 15s timeout
+  - `forms.py`: IP address validation
+  
+  **Route:** `/ip/`
+</Accordion>
+
+<Accordion title="PhoneSearch/" icon="phone">
+  **Phone Number Search**
+  
+  Searches for phone numbers across platforms asynchronously.
+  
+  **Key Features:**
+  - Async processing with Celery
+  - International format support
+  - Uses phonenumbers library
+  
+  **Key Files:**
+  - `views.py`: Search form and results display
+  - `tasks.py`: Celery tasks for async processing
+  - `models.py`: Database models for storing search results
+  
+  **Route:** `/phone/`
+</Accordion>
+
+<Accordion title="UsernameSearch/" icon="user">
+  **Username Search Tool**
+  
+  Searches for usernames across 300+ websites using Sherlock.
+  
+  **Key Features:**
+  - 300+ platform search
+  - CSV export functionality
+  - 300s timeout for comprehensive search
+  
+  **Key Files:**
+  - `views.py`: Username search and CSV export logic
+  - `forms.py`: Username input form
+  
+  **Route:** `/user/`
+</Accordion>
+
+## Templates Directory
+
+Global templates used across the application.
+
+### Main Templates
+
+<CardGroup cols={2}>
+  <Card title="base.html" icon="file">
+    Base template with:
+    - Bootstrap 5 integration
+    - Common header and footer
+    - CSP nonce support
+    - Dark/light mode toggle
+  </Card>
+
+  <Card title="home.html" icon="house">
+    Homepage template displaying:
+    - Hero section
+    - Tool cards
+    - Features overview
+    - Disclaimer
+  </Card>
+
+  <Card title="404.html / 500.html" icon="triangle-exclamation">
+    Custom error pages for:
+    - 404 Not Found
+    - 500 Server Error
+  </Card>
+</CardGroup>
+
+### Includes Directory
+
+Reusable template components:
+
+```
+templates/includes/
+├── navbar.html           # Navigation bar
+├── footer.html           # Site footer
+├── hero.html             # Homepage hero section
+├── features.html         # Features showcase
+├── cards.html            # Tool cards
+├── disclaimer.html       # Legal disclaimer
+├── about.html            # About section
+└── privacy_notice.html   # Privacy notice
+```
+
+## Static Files Directory
+
+Organization of CSS, JavaScript, and images.
+
+```
+static/
+├── bootstrap-icons/      # Bootstrap Icons font
+│   └── font/
+│       └── fonts/
+├── css/
+│   ├── components/       # Reusable CSS components
+│   ├── ExifTool/         # EXIF tool styles
+│   ├── email_holehe/     # Email search styles
+│   └── [other tools]/
+├── js/
+│   ├── ExifTool/         # EXIF tool JavaScript
+│   ├── HashTool/         # Hash tool JavaScript
+│   ├── IPLookup/         # IP lookup JavaScript
+│   └── email_holehe/     # Email search JavaScript
+└── img/
+    └── screenshots/      # Application screenshots
+```
+
+<Note>
+  In production, static files are collected to `staticfiles/` using `python manage.py collectstatic` and served by WhiteNoise.
+</Note>
+
+## Utils Directory
+
+Shared utility functions and validators.
+
+```
+utils/
+├── __init__.py
+├── helpers.py            # Common helper functions
+└── validators.py         # Input validation utilities
+```
+
+These utilities can be imported by any app to avoid code duplication.
+
+## Test Directory
+
+Integration tests for the application.
+
+```
+test/
+├── __init__.py
+└── test_integrations.py  # Integration test cases
+```
+
+## Configuration Files
+
+<CardGroup cols={2}>
+  <Card title="requirements.txt" icon="list">
+    Python dependencies including:
+    - Django 5.2
+    - Celery 5.6
+    - Holehe 1.61
+    - Sherlock 0.16.0
+    - PyExifTool 0.5.6
+    - phonenumbers 9.0
+    - Gunicorn, WhiteNoise
+    - django-csp, redis
+  </Card>
+
+  <Card title=".env.example" icon="key">
+    Environment variables template:
+    - SECRET_KEY
+    - DEBUG
+    - ALLOWED_HOSTS
+    - CSRF_TRUSTED_ORIGINS
+    - DATABASE_URL
+  </Card>
+
+  <Card title="manage.py" icon="terminal">
+    Django management script for:
+    - Running dev server
+    - Database migrations
+    - Collecting static files
+    - Creating superuser
+  </Card>
+
+  <Card title=".cz.toml" icon="git">
+    Commitizen configuration for standardized commit messages
+  </Card>
+</CardGroup>
+
+## Database
+
+<Tabs>
+  <Tab title="Development">
+    **SQLite 3**
+    
+    - File: `db.sqlite3` (in root directory)
+    - Location: `BASE_DIR / "db.sqlite3"`
+    - Ideal for development and testing
+    - No additional setup required
+  </Tab>
+  
+  <Tab title="Production">
+    **PostgreSQL (Recommended)**
+    
+    - Configured via DATABASE_URL environment variable
+    - Example: `postgres://user:pass@host:5432/dbname`
+    - Better performance and reliability
+    - Required for production deployments
+  </Tab>
+</Tabs>
+
+## Middleware Stack
+
+The application uses the following middleware (in order):
+
+1. **SecurityMiddleware** - Django security features
+2. **WhiteNoiseMiddleware** - Static file serving
+3. **SessionMiddleware** - Session management
+4. **CommonMiddleware** - Common utilities
+5. **CsrfViewMiddleware** - CSRF protection
+6. **CSPMiddleware** - Content Security Policy
+7. **AuthenticationMiddleware** - User authentication
+8. **MessageMiddleware** - Message framework
+9. **XFrameOptionsMiddleware** - Clickjacking protection
+
+## Key Dependencies
+
+### Backend Libraries
+
+- **Django 5.2** - Web framework
+- **Celery 5.6** - Async task queue
+- **Redis** - Message broker
+- **Gunicorn 23.0** - WSGI server
+- **WhiteNoise 6.8** - Static file serving
+- **django-csp 3.8** - Content Security Policy
+
+### OSINT Tools
+
+- **Holehe 1.61** - Email search
+- **Sherlock 0.16.0** - Username search
+- **PyExifTool 0.5.6** - Metadata extraction
+- **phonenumbers 9.0** - Phone number parsing
+
+### Frontend
+
+- **Bootstrap 5** - CSS framework
+- **Bootstrap Icons** - Icon library
+- **Vanilla JavaScript** - Client-side interactivity
+
+## Security Architecture
+
+<CardGroup cols={2}>
+  <Card title="Input Validation" icon="shield-check">
+    - Django form validation
+    - Custom validators in utils/
+    - File type and size checks
+    - Path traversal prevention
+  </Card>
+
+  <Card title="Security Headers" icon="lock">
+    - CSRF protection
+    - Content Security Policy
+    - HSTS (production)
+    - XSS protection
+    - X-Frame-Options
+  </Card>
+
+  <Card title="Process Timeouts" icon="clock">
+    - Holehe: 60s
+    - Sherlock: 300s
+    - IP Lookup: 15s
+    - Prevents resource exhaustion
+  </Card>
+
+  <Card title="Environment Config" icon="gear">
+    - .env file for secrets
+    - No hardcoded credentials
+    - Separate dev/prod settings
+    - Secure defaults
+  </Card>
+</CardGroup>
+
+## Deployment Structure
+
+### Development
+
+```bash
+python manage.py runserver
+```
+
+- DEBUG = True
+- SQLite database
+- Django dev server
+- Hot reload enabled
+
+### Production
+
+```bash
+gunicorn osint_hub.wsgi:application --bind 0.0.0.0:8000 --workers 3
+```
+
+- DEBUG = False
+- PostgreSQL database
+- Gunicorn WSGI server
+- Static files via WhiteNoise
+- Security headers enabled
+- HTTPS recommended
+
+## Best Practices
+
+<Steps>
+  <Step title="Keep Apps Modular">
+    Each tool should be self-contained and independent
+  </Step>
+  
+  <Step title="Use Utils for Shared Code">
+    Avoid duplicating code across apps
+  </Step>
+  
+  <Step title="Follow Django Conventions">
+    Maintain standard Django project structure
+  </Step>
+  
+  <Step title="Separate Static Files">
+    Keep tool-specific assets in app directories
+  </Step>
+  
+  <Step title="Security First">
+    Always validate inputs and implement timeouts
+  </Step>
+</Steps>
+
+---
+
+Understanding this structure will help you navigate the codebase and contribute effectively to OSINT Hub.

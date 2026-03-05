@@ -1,97 +1,109 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "OSINT Hub"
+description: "Centralized web platform for Open Source Intelligence tools"
 ---
 
-## Setting up
+<div className="py-12 px-6 text-center" style={{backgroundColor: '#ffffff'}}>
+  <h1 className="text-5xl font-bold mb-4" style={{color: '#1a1a1a', fontFamily: 'Inter', fontSize: '48px', fontWeight: 700}}>
+    OSINT Hub
+  </h1>
+  <p className="text-xl mb-8" style={{color: '#1a1a1a', fontFamily: 'Inter', fontSize: '18px', maxWidth: '800px', margin: '0 auto 2rem'}}>
+    A centralized web platform for utilizing multiple OSINT (Open Source Intelligence) tools efficiently and professionally.
+  </p>
+  <div className="flex gap-4 justify-center">
+    <a href="/quickstart" className="px-6 py-3 rounded" style={{backgroundColor: '#94cb04', color: '#1a1a1a', textDecoration: 'none', fontWeight: 600, borderRadius: '6px'}}>
+      Get Started
+    </a>
+    <a href="https://github.com/Nakajito/osint_hub" className="px-6 py-3 rounded" style={{backgroundColor: '#e6e6e6', color: '#1a1a1a', textDecoration: 'none', fontWeight: 600, borderRadius: '6px'}}>
+      View on GitHub
+    </a>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+## Powerful OSINT Tools in One Platform
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+OSINT Hub brings together essential intelligence gathering tools in a modern, user-friendly web interface.
 
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={3}>
+  <Card title="Email Search" icon="envelope" href="/tools/email-search">
+    Verify email presence across multiple platforms using Holehe
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="EXIF Metadata" icon="camera" href="/tools/exif-metadata">
+    Extract metadata from images, videos, and PDFs with GPS mapping
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Hash Tool" icon="fingerprint" href="/tools/hash-tool">
+    Generate and verify cryptographic hashes (MD5, SHA1, SHA256, SHA512, BLAKE2)
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="IP Lookup" icon="globe" href="/tools/ip-lookup">
+    Geolocation and network information for IP addresses
   </Card>
-</Columns>
+  <Card title="Username Search" icon="magnifying-glass" href="/tools/username-search">
+    Search usernames across 300+ platforms with Sherlock
+  </Card>
+  <Card title="Phone Search" icon="phone" href="/tools/phone-search">
+    International phone number information lookup
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## Quick Start
 
-Everything you need to create world-class documentation.
+Get OSINT Hub running in minutes on your local machine or deploy to production.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={2}>
+  <Card title="Installation Guide" icon="download" href="/deployment/installation">
+    Set up OSINT Hub with Python 3.12 and Django 5.2
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get from zero to your first OSINT search in under 5 minutes
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Configure environment variables and settings
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
+  <Card title="Production Deployment" icon="server" href="/deployment/production">
+    Deploy OSINT Hub to production with Gunicorn
   </Card>
-</Columns>
+</CardGroup>
 
-## Need inspiration?
+## Key Features
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<CardGroup cols={2}>
+  <Card title="Modular Architecture" icon="puzzle-piece">
+    Each OSINT tool is implemented as a separate Django app for easy maintenance and extension
+  </Card>
+  <Card title="Async Processing" icon="bolt">
+    Celery integration for handling long-running searches without blocking the UI
+  </Card>
+  <Card title="Security First" icon="shield-halved">
+    Built-in CSP, HSTS, CSRF protection, and input sanitization
+  </Card>
+  <Card title="Responsive Design" icon="mobile-screen">
+    Bootstrap 5 interface with dark/light mode support
+  </Card>
+</CardGroup>
+
+## Built With Modern Technology
+
+OSINT Hub is built on a solid foundation of proven technologies:
+
+- **Python 3.12** and **Django 5.2** for robust backend
+- **Celery 5.6** with **Redis** for async task processing
+- **Bootstrap 5** for responsive, accessible UI
+- **Holehe** for email search across platforms
+- **Sherlock** for username search on 300+ websites
+- **ExifTool** for comprehensive metadata extraction
+- **WhiteNoise** for efficient static file serving
+
+<Note>
+  OSINT Hub is open source and licensed under MIT. Contributions are welcome!
+</Note>
+
+## Get Started Today
+
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="book-open" href="/introduction">
+    Learn about OSINT Hub's capabilities and use cases
+  </Card>
+  <Card title="View Documentation" icon="file-lines" href="/features">
+    Explore all features and tools in detail
+  </Card>
+</CardGroup>

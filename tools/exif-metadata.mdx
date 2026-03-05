@@ -1,0 +1,297 @@
+---
+title: EXIF Metadata Extractor
+description: Extract and analyze EXIF metadata from images, videos, and documents including GPS coordinates
+icon: camera
+---
+
+## Overview
+
+The EXIF Metadata Extractor uses [ExifTool](https://exiftool.org/) to read and analyze metadata embedded in images, videos, and PDF documents. This tool is particularly powerful for extracting GPS coordinates, camera settings, timestamps, and drone telemetry data.
+
+<Note>
+  ExifTool can read metadata from over 500 different file types including JPEG, PNG, GIF, TIFF, MP4, and PDF files.
+</Note>
+
+## How It Works
+
+The tool uploads files temporarily, executes ExifTool to extract metadata in JSON format, and parses the results to present structured information including interactive maps for GPS coordinates.
+
+### Technical Implementation
+
+From `ExifTool/views.py:129-146`:
+
+```python
+# Buscamos la ruta real
+exiftool_path = shutil.which("exiftool") or "/usr/bin/exiftool"
+
+# COMANDO ESTÁNDAR
+cmd = [exiftool_path, "-json", tmp_path]
+
+proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+if proc.returncode == 0 and proc.stdout:
+    try:
+        parsed = json.loads(proc.stdout)
+        if parsed:
+            metadata = parsed[0]
+    except json.JSONDecodeError:
+        pass
+```
+
+## Usage
+
+<Steps>
+  <Step title="Upload File">
+    Select an image, video, or PDF file to analyze. The tool supports:
+    
+    - **Images**: JPEG, PNG, GIF, TIFF
+    - **Videos**: MP4
+    - **Documents**: PDF
+    
+    Maximum file size: **50 MB**
+  </Step>
+  
+  <Step title="Configure Options">
+    Choose whether to keep the uploaded file after analysis:
+    
+    - **Keep File**: File remains on server temporarily
+    - **Delete After Analysis**: File is removed immediately (default for privacy)
+  </Step>
+  
+  <Step title="Extract Metadata">
+    Click upload to process the file. ExifTool will extract all available metadata including:
+    
+    - Camera make and model
+    - Date and time information
+    - GPS coordinates (latitude, longitude, altitude)
+    - Drone telemetry data (for DJI Enterprise drones)
+    - Image dimensions and resolution
+    - Software used to create/edit the file
+  </Step>
+  
+  <Step title="View Results">
+    Review the extracted metadata and interactive map displays for GPS coordinates.
+  </Step>
+</Steps>
+
+## GPS Coordinate Extraction
+
+The tool handles multiple GPS coordinate formats and provides interactive map links.
+
+### Drone/Camera Coordinates
+
+From `ExifTool/views.py:167-179`:
+
+```python
+lat_raw = metadata.get("GPSLatitude")
+lon_raw = metadata.get("GPSLongitude")
+
+lat = parse_dms(lat_raw)
+lon = parse_dms(lon_raw)
+
+if lat is not None and lon is not None:
+    lat = round(lat, 6)
+    lon = round(lon, 6)
+    drone_coords = (lat, lon)
+    map_url_drone = f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=16/{lat}/{lon}"
+```
+
+### LRF Target Coordinates
+
+For DJI Enterprise drones with laser rangefinder (LRF) capabilities:
+
+```python
+tlat_raw = metadata.get("LRFTargetLat") or metadata.get("LRFTargetLatitude")
+tlon_raw = metadata.get("LRFTargetLon") or metadata.get("LRFTargetLongitude")
+
+tlat = parse_dms(tlat_raw)
+tlon = parse_dms(tlon_raw)
+
+if tlat is not None and tlon is not None:
+    target_coords = (tlat, tlon)
+    map_url_target = f"https://www.openstreetmap.org/?mlat={tlat}&mlon={tlon}#map=16/{tlat}/{tlon}"
+```
+
+## DMS to Decimal Conversion
+
+The tool includes a sophisticated parser to convert various coordinate formats:
+
+### Supported Formats
+
+From `ExifTool/views.py:41-79`:
+
+```python
+def parse_dms(dms_str):
+    # Already a number (int or float)
+    if isinstance(dms_str, (int, float)):
+        return float(dms_str)
+    
+    # String number "21.123"
+    try:
+        return float(dms_str)
+    except ValueError:
+        pass
+    
+    # DMS format: "21 deg 8' 34.30" N"
+    match = re.search(
+        r'(\d+)\s*deg\s*(\d+)\'\s*([\d\.]+)"\s*([NSEW])', 
+        dms_str, 
+        re.IGNORECASE
+    )
+    if match:
+        deg = float(match.group(1))
+        mn = float(match.group(2))
+        sec = float(match.group(3))
+        direction = match.group(4).upper()
+        
+        decimal = deg + (mn / 60.0) + (sec / 3600.0)
+        
+        if direction in ["S", "W"]:
+            decimal = -decimal
+        
+        return decimal
+```
+
+## API Endpoints
+
+Defined in `ExifTool/urls.py`:
+
+| Endpoint | View Function | Purpose |
+|----------|--------------|----------|
+| `/upload/` | `upload_file` | File upload form and processing |
+| `/metadata/` | `show_metadata` | Display extracted metadata and maps |
+
+## Metadata Cleaning
+
+To prevent session overflow, the tool truncates large metadata values:
+
+```python
+def clean_metadata_for_session(metadata):
+    clean_data = {}
+    for k, v in metadata.items():
+        str_val = str(v)
+        if len(str_val) > 500:
+            clean_data[k] = str_val[:100] + "... (truncado)"
+        else:
+            clean_data[k] = v
+    return clean_data
+```
+
+## Configuration
+
+<ParamField path="ALLOWED_CONTENT_TYPES" type="array">
+  Supported MIME types for upload:
+  - `image/jpeg`
+  - `image/png`
+  - `image/gif`
+  - `image/tiff`
+  - `video/mp4`
+  - `application/pdf`
+</ParamField>
+
+<ParamField path="MAX_FILE_SIZE" type="integer" default="52428800">
+  Maximum file size in bytes (50 MB)
+</ParamField>
+
+## Altitude Extraction
+
+The tool extracts and parses altitude information:
+
+```python
+alt_raw = metadata.get("GPSAltitude") or metadata.get("Exif_GPSAltitude")
+if alt_raw:
+    # Extract numeric value from "3.8 m Below Sea Level"
+    match_alt = re.match(r"([-+]?[\d\.]+)", str(alt_raw))
+    if match_alt:
+        drone_alt = float(match_alt.group(1))
+```
+
+## Session Storage
+
+From `ExifTool/views.py:208-215`:
+
+```python
+request.session["exif_metadata"] = clean_meta
+request.session["exif_filename"] = uploaded.name
+request.session["exif_drone_coords"] = drone_coords
+request.session["exif_target_coords"] = target_coords
+request.session["exif_map_drone_url"] = map_url_drone
+request.session["exif_map_target_url"] = map_url_target
+request.session["exif_drone_alt"] = drone_alt
+```
+
+## Error Handling
+
+<Warning>
+  The tool handles multiple error scenarios:
+  
+  - **No File Uploaded**: Redirects with error message
+  - **File Too Large**: Validates against MAX_FILE_SIZE limit
+  - **Temporary File Errors**: Catches I/O exceptions
+  - **ExifTool Timeout**: 30-second execution timeout
+  - **JSON Parse Errors**: Gracefully handles malformed output
+  - **No Metadata Found**: Displays warning message
+</Warning>
+
+## Temporary File Handling
+
+The tool creates secure temporary directories for file processing:
+
+```python
+tmp_dir = tempfile.mkdtemp(prefix="exif_")
+tmp_path = os.path.join(tmp_dir, uploaded.name)
+
+with open(tmp_path, "wb+") as f:
+    for chunk in uploaded.chunks():
+        f.write(chunk)
+```
+
+If the `keep_file` option is not selected, files are automatically deleted:
+
+```python
+if not keep:
+    try:
+        os.remove(tmp_path)
+        os.rmdir(tmp_dir)
+    except Exception:
+        pass
+```
+
+## Use Cases
+
+- **Image Forensics**: Verify image authenticity and origin
+- **Geolocation**: Extract exact GPS coordinates from photos
+- **Drone Investigation**: Analyze drone flight data and target coordinates
+- **Timestamp Verification**: Confirm when photos/videos were captured
+- **Camera Identification**: Identify devices used to capture media
+- **Privacy Analysis**: Discover what metadata is embedded in files
+
+## Common Metadata Fields
+
+### Camera Information
+- `Make`: Camera manufacturer
+- `Model`: Camera model
+- `LensModel`: Lens used
+- `ExposureTime`: Shutter speed
+- `FNumber`: Aperture
+- `ISO`: ISO sensitivity
+
+### Location Data
+- `GPSLatitude`: North/South coordinate
+- `GPSLongitude`: East/West coordinate
+- `GPSAltitude`: Height above sea level
+- `LRFTargetLat/Lon`: Laser rangefinder target coordinates (DJI drones)
+
+### Timestamps
+- `CreateDate`: File creation date
+- `ModifyDate`: Last modification date
+- `DateTimeOriginal`: Original capture date/time
+
+## Limitations
+
+- ExifTool must be installed on the system
+- Maximum file size is 50 MB
+- Processing timeout is 30 seconds
+- Some files may have no embedded metadata
+- Metadata can be stripped or modified by editing software
+- GPS coordinates may be inaccurate depending on device capabilities

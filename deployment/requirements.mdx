@@ -1,0 +1,204 @@
+---
+title: System Requirements
+description: System requirements and dependencies for OSINT Hub
+---
+
+## System Requirements
+
+OSINT Hub requires the following system components to run properly:
+
+### Python
+
+<Note>
+  **Python 3.12 or higher** is required
+</Note>
+
+Verify your Python version:
+
+```bash
+python --version
+# or
+python3 --version
+```
+
+If you need to install or upgrade Python, visit [python.org](https://www.python.org/downloads/).
+
+### ExifTool
+
+ExifTool is required for the EXIF metadata extraction functionality. It must be installed as a system binary.
+
+<CodeGroup>
+  ```bash Debian/Ubuntu
+  sudo apt update
+  sudo apt install libimage-exiftool-perl
+  ```
+
+  ```bash macOS
+  brew install exiftool
+  ```
+
+  ```bash Fedora/RHEL
+  sudo dnf install perl-Image-ExifTool
+  ```
+</CodeGroup>
+
+Verify ExifTool installation:
+
+```bash
+exiftool -ver
+```
+
+The application will check for ExifTool at:
+- `/usr/bin/exiftool` (default)
+- `/usr/local/bin/exiftool` (alternative)
+
+### Redis (Optional)
+
+Redis is required for Celery task queue functionality, which powers asynchronous operations like Phone Search.
+
+<CodeGroup>
+  ```bash Debian/Ubuntu
+  sudo apt update
+  sudo apt install redis-server
+  sudo systemctl start redis
+  sudo systemctl enable redis
+  ```
+
+  ```bash macOS
+  brew install redis
+  brew services start redis
+  ```
+
+  ```bash Fedora/RHEL
+  sudo dnf install redis
+  sudo systemctl start redis
+  sudo systemctl enable redis
+  ```
+</CodeGroup>
+
+Verify Redis is running:
+
+```bash
+redis-cli ping
+# Should return: PONG
+```
+
+<Note>
+  If you don't need asynchronous task processing, Redis is optional. However, the Phone Search feature requires it.
+</Note>
+
+### pip and virtualenv
+
+Ensure you have pip (Python package installer) and virtualenv installed:
+
+```bash
+pip install --upgrade pip
+pip install virtualenv
+```
+
+## Python Dependencies
+
+OSINT Hub uses the following key Python packages (automatically installed via `requirements.txt`):
+
+### Web Framework
+
+- **Django 5.2.8** - Main web framework
+- **django-bootstrap5 25.2** - Bootstrap 5 integration
+- **django-csp 3.8** - Content Security Policy middleware
+- **dj-database-url 2.3.0** - Database configuration from URL
+- **python-decouple 3.8** - Environment variable management
+
+### OSINT Tools
+
+- **holehe 1.61** - Email search across platforms
+- **sherlock-project 0.16.0** - Username search across 300+ sites
+- **PyExifTool 0.5.6** - EXIF metadata extraction wrapper
+- **phonenumbers 9.0.18** - Phone number parsing and validation
+
+### Async Task Processing
+
+- **Celery 5.6.1** - Distributed task queue
+- **redis 7.1.0** - Redis Python client
+- **django_celery_results 2.6.0** - Store Celery results in Django DB
+
+### Production Server
+
+- **Gunicorn 23.0.0** - WSGI HTTP server for production
+- **WhiteNoise 6.8.2** - Static file serving for production
+- **psycopg2-binary 2.9.10** - PostgreSQL adapter (for production databases)
+
+### Additional Libraries
+
+- **requests 2.32.5** - HTTP library
+- **beautifulsoup4 4.14.2** - HTML parsing
+- **pandas 2.3.3** - Data manipulation (for CSV exports)
+- **httpx 0.28.1** - Async HTTP client
+
+## Database Options
+
+### Development
+
+**SQLite 3** is used by default for development. No additional installation required - included with Python.
+
+### Production (Recommended)
+
+**PostgreSQL** is recommended for production deployments:
+
+<CodeGroup>
+  ```bash Debian/Ubuntu
+  sudo apt install postgresql postgresql-contrib
+  sudo systemctl start postgresql
+  sudo systemctl enable postgresql
+  ```
+
+  ```bash macOS
+  brew install postgresql
+  brew services start postgresql
+  ```
+
+  ```bash Fedora/RHEL
+  sudo dnf install postgresql postgresql-server
+  sudo postgresql-setup --initdb
+  sudo systemctl start postgresql
+  sudo systemctl enable postgresql
+  ```
+</CodeGroup>
+
+## Storage Requirements
+
+- **Minimum disk space**: 500 MB for application and dependencies
+- **Recommended**: 2 GB+ for uploaded files and search results
+- **Media files**: Uploaded images/videos are stored in `media/` directory
+- **Search results**: Username search results stored in `~/.local/share/osint_hub/search_results/` by default
+
+## Network Requirements
+
+OSINT Hub makes external requests to various services:
+
+- **Holehe**: Checks email presence on multiple platforms (60s timeout)
+- **Sherlock**: Queries 300+ websites for username matches (300s timeout)
+- **IP Lookup**: Queries IP geolocation services (15s timeout)
+
+<Warning>
+  Ensure your firewall allows outbound HTTPS connections. Some OSINT tools may be blocked by restrictive network policies.
+</Warning>
+
+## Browser Compatibility
+
+The web interface is built with Bootstrap 5 and supports:
+
+- Chrome/Edge 90+
+- Firefox 88+
+- Safari 14+
+- Opera 76+
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/deployment/installation">
+    Follow the step-by-step installation guide
+  </Card>
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Configure environment variables and settings
+  </Card>
+</CardGroup>

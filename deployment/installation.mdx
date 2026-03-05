@@ -1,0 +1,140 @@
+---
+title: Installation
+description: Step-by-step guide to install OSINT Hub on your system
+---
+
+## Prerequisites
+
+Before installing OSINT Hub, ensure you have the required system dependencies installed. See [Requirements](/deployment/requirements) for detailed information.
+
+<Note>
+  Make sure you have Python 3.12+, ExifTool, and Redis installed before proceeding.
+</Note>
+
+## Installation Steps
+
+Follow these steps to install OSINT Hub on your local machine:
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the OSINT Hub repository from GitHub:
+
+    ```bash
+    git clone https://github.com/Nakajito/osint_hub.git
+    cd osint_hub
+    ```
+  </Step>
+
+  <Step title="Create and activate virtual environment">
+    Create a Python virtual environment to isolate dependencies:
+
+    <CodeGroup>
+      ```bash Linux/macOS
+      python -m venv venv
+      source venv/bin/activate
+      ```
+
+      ```bash Windows
+      python -m venv venv
+      venv\Scripts\activate
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Install dependencies">
+    Install all required Python packages from requirements.txt:
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+    This will install Django 5.2, Celery 5.6, and all OSINT tools including:
+    - **Holehe 1.61** - Email search across platforms
+    - **Sherlock 0.16** - Username search across 300+ sites
+    - **PyExifTool 0.5.6** - EXIF metadata extraction
+    - **phonenumbers 9.0** - Phone number analysis
+  </Step>
+
+  <Step title="Configure environment variables">
+    Copy the example environment file and edit it with your configuration:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Edit the `.env` file with your preferred text editor. See [Configuration](/deployment/configuration) for detailed information about each variable.
+
+    <Note>
+      At minimum, you must set a unique `SECRET_KEY` for security purposes.
+    </Note>
+  </Step>
+
+  <Step title="Run database migrations">
+    Apply Django database migrations to set up the database schema:
+
+    ```bash
+    python manage.py migrate
+    ```
+
+    This creates the SQLite database (default) with all necessary tables.
+  </Step>
+
+  <Step title="Collect static files">
+    Collect all static files (CSS, JavaScript, images) into the staticfiles directory:
+
+    ```bash
+    python manage.py collectstatic
+    ```
+
+    Type `yes` when prompted to confirm.
+  </Step>
+
+  <Step title="Start the development server">
+    Run the Django development server:
+
+    ```bash
+    python manage.py runserver
+    ```
+
+    The application will be available at `http://localhost:8000`
+  </Step>
+</Steps>
+
+## Verify Installation
+
+Once the server is running, open your browser and navigate to:
+
+- **Home page**: http://localhost:8000
+- **Email Search**: http://localhost:8000/email/
+- **EXIF Tool**: http://localhost:8000/exiftool/
+- **Hash Tool**: http://localhost:8000/hash/
+- **IP Lookup**: http://localhost:8000/ip/
+- **Username Search**: http://localhost:8000/user/
+- **Phone Search**: http://localhost:8000/phone/
+
+## Optional: Start Celery Worker
+
+For asynchronous task processing (required for Phone Search), start a Celery worker in a separate terminal:
+
+```bash
+# Make sure your virtual environment is activated
+source venv/bin/activate
+
+# Start Celery worker
+celery -A osint_hub worker --loglevel=info
+```
+
+<Note>
+  Celery requires Redis to be running. Make sure Redis is installed and started before running the Celery worker.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Learn how to configure environment variables and Django settings
+  </Card>
+  <Card title="Production Deployment" icon="server" href="/deployment/production">
+    Deploy OSINT Hub to production with Gunicorn or PythonAnywhere
+  </Card>
+</CardGroup>
